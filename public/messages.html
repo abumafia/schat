@@ -26,6 +26,32 @@
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
+        .message-bubble {
+            max-width: 70%;
+            border-radius: 18px;
+            padding: 12px 16px;
+            margin: 4px 0;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        .message-bubble.sent {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .message-bubble.received {
+            background: #F3F4F6;
+            color: #1F2937;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 h-screen overflow-hidden">
@@ -84,7 +110,8 @@
                     <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                     <input type="text" id="conversationSearch" 
                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                           placeholder="Search conversations...">
+                           placeholder="Search conversations..."
+                           oninput="filterConversations(this.value)">
                 </div>
             </div>
             
@@ -242,43 +269,43 @@
             setInterval(loadConversations, 30000);
         });
 
-        // Authentication
-        async function checkAuth() {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/login.html';
-                return;
-            }
+        // O'zgartirish: checkAuth funksiyasida (qator ~200)
+async function checkAuth() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = '/login.html';
+        return;
+    }
 
-            try {
-                const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
-                });
-                
-                if (!response.ok) {
-                    localStorage.removeItem('token');
-                    window.location.href = '/login.html';
-                }
-            } catch (error) {
-                window.location.href = '/login.html';
-            }
+    try {
+        const response = await fetch('/api/me', {
+            headers: { 'Authorization': `Bearer ${token}` } // BU YERDA O'ZGARDI
+        });
+        
+        if (!response.ok) {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
         }
+    } catch (error) {
+        window.location.href = '/login.html';
+    }
+}
 
-        // Load current user
-        async function loadCurrentUser() {
-            try {
-                const response = await fetch('/api/me', {
-                    headers: { 'Authorization': localStorage.getItem('token') }
-                });
-                const data = await response.json();
-                if (data.success) {
-                    currentUser = data.user;
-                    document.getElementById('userAvatar').src = currentUser.avatar;
-                }
-            } catch (error) {
-                console.error('Failed to load user:', error);
-            }
+        // O'zgartirish: loadCurrentUser funksiyasida (qator ~218)
+async function loadCurrentUser() {
+    try {
+        const response = await fetch('/api/me', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } // BU YERDA O'ZGARDI
+        });
+        const data = await response.json();
+        if (data.success) {
+            currentUser = data.user;
+            document.getElementById('userAvatar').src = currentUser.avatar;
         }
+    } catch (error) {
+        console.error('Failed to load user:', error);
+    }
+}
 
         // Setup Socket.IO
         function setupSocket() {
@@ -286,6 +313,16 @@
             socket = io();
             
             socket.emit('authenticate', token);
+
+            // After auth, request the current online users list so statuses are correct
+            socket.on('authenticated', () => {
+                socket.emit('getOnlineUsers');
+            });
+
+            socket.on('onlineUsersList', (data) => {
+                const ids = (data && Array.isArray(data.users)) ? data.users : [];
+                ids.forEach((id) => updateUserStatus(id, true));
+            });
             
             // Listen for new messages
             socket.on('newMessage', (message) => {
@@ -313,31 +350,19 @@
             });
             
             // Listen for online/offline status
-            socket.on('userOnline', (userId) => {
-                updateUserStatus(userId, true);
+            // Server may emit either a plain userId string OR an object like { userId, timestamp }
+            socket.on('userOnline', (payload) => {
+                const userId = (payload && typeof payload === 'object') ? payload.userId : payload;
+                if (userId) updateUserStatus(userId, true);
             });
             
-            socket.on('userOffline', (userId) => {
-                updateUserStatus(userId, false);
+            socket.on('userOffline', (payload) => {
+                const userId = (payload && typeof payload === 'object') ? payload.userId : payload;
+                if (userId) updateUserStatus(userId, false);
             });
         }
 
-        // Load conversations
-        async function loadConversations() {
-            try {
-                const response = await fetch('/api/conversations', {
-                    headers: { 'Authorization': localStorage.getItem('token') }
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    conversations = data.conversations;
-                    renderConversations(conversations);
-                }
-            } catch (error) {
-                console.error('Failed to load conversations:', error);
-            }
-        }
+        // Load conversations - moved to bottom with filter support
 
         // Render conversations list
         function renderConversations(conversations) {
@@ -354,72 +379,73 @@
                 return;
             }
             
-            container.innerHTML = conversations.map(conv => `
+            container.innerHTML = conversations.map(conv => {
+                // Get message preview (truncate if too long)
+                let messagePreview = 'No messages yet';
+                if (conv.lastMessage) {
+                    if (conv.lastMessage.mediaType) {
+                        const mediaIcons = {
+                            'image': 'fa-image',
+                            'video': 'fa-video',
+                            'audio': 'fa-music',
+                            'voice': 'fa-microphone',
+                            'document': 'fa-file',
+                            'file': 'fa-file'
+                        };
+                        messagePreview = `<i class="fas ${mediaIcons[conv.lastMessage.mediaType] || 'fa-file'} mr-1"></i> ${conv.lastMessage.mediaType || 'Media'}`;
+                    } else if (conv.lastMessage.text) {
+                        messagePreview = conv.lastMessage.text.length > 50 
+                            ? conv.lastMessage.text.substring(0, 50) + '...' 
+                            : conv.lastMessage.text;
+                    }
+                }
+                
+                // Get full name or nickname
+                const displayName = conv.fullName || conv.nickname || conv.username || 'Unknown';
+                const nickname = conv.nickname || conv.username || '';
+                
+                return `
                 <div class="conversation-item p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition" 
-                     onclick="openChat('${conv.userId}')">
+                     onclick="openChat('${conv.userId || conv._id}')">
                     <div class="flex items-center space-x-3">
-                        <div class="relative">
-                            <img src="${conv.avatar}" class="w-12 h-12 rounded-full">
+                        <div class="relative flex-shrink-0">
+                            <img src="${conv.avatar || 'https://res.cloudinary.com/demo/image/upload/v1692290000/default-avatar.png'}" 
+                                 class="w-14 h-14 rounded-full object-cover border-2 ${conv.isOnline ? 'border-green-500' : 'border-gray-300'}">
                             ${conv.isOnline ? 
                                 '<div class="online-dot bg-green-500 rounded-full absolute bottom-0 right-0"></div>' : 
                                 '<div class="online-dot bg-gray-400 rounded-full absolute bottom-0 right-0"></div>'
                             }
                         </div>
                         <div class="flex-1 min-w-0">
-                            <div class="flex justify-between items-center">
-                                <h4 class="font-semibold text-gray-800 truncate">${conv.nickname}</h4>
-                                <span class="text-xs text-gray-500">
-                                    ${formatTime(conv.lastMessage?.createdAt)}
+                            <div class="flex justify-between items-center mb-1">
+                                <h4 class="font-semibold text-gray-800 truncate" title="${displayName}">${displayName}</h4>
+                                <span class="text-xs text-gray-500 whitespace-nowrap ml-2">
+                                    ${formatTime(conv.lastMessage?.createdAt || conv.lastMessage?.createdAt)}
                                 </span>
                             </div>
-                            <p class="text-sm text-gray-600 truncate">
-                                ${conv.lastMessage?.mediaType ? 
-                                    `<i class="fas fa-file-${conv.lastMessage.mediaType} mr-1"></i> ${conv.lastMessage.mediaType}` : 
-                                    conv.lastMessage?.text || 'No messages yet'
-                                }
+                            ${nickname && nickname !== displayName ? `
+                                <p class="text-xs text-gray-500 truncate mb-1">@${nickname}</p>
+                            ` : ''}
+                            <p class="text-sm text-gray-600 truncate" title="${messagePreview}">
+                                ${messagePreview}
                             </p>
                         </div>
                         ${conv.unreadCount > 0 ? `
-                            <div class="unread-badge bg-red-500 text-white rounded-full flex items-center justify-center px-2">
-                                ${conv.unreadCount}
+                            <div class="unread-badge bg-red-500 text-white rounded-full flex items-center justify-center px-2 text-xs font-semibold flex-shrink-0">
+                                ${conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                             </div>
                         ` : ''}
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
-        // Open chat with user
+        // Open chat with user - redirect to chat.html
         async function openChat(userId) {
             try {
-                // Get user info
-                const response = await fetch(`/api/user/${userId}`, {
-                    headers: { 'Authorization': localStorage.getItem('token') }
-                });
-                const userData = await response.json();
-                
-                if (userData.success) {
-                    currentChatUser = userData.user;
-                    
-                    // Update chat header
-                    document.getElementById('chatAvatar').src = currentChatUser.avatar;
-                    document.getElementById('chatNickname').textContent = currentChatUser.nickname;
-                    document.getElementById('chatUniversity').textContent = currentChatUser.university;
-                    
-                    // Update status
-                    const statusDot = document.getElementById('chatStatus');
-                    statusDot.className = `online-dot rounded-full absolute bottom-0 right-0 ${currentChatUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`;
-                    
-                    // Show chat area on mobile
-                    document.getElementById('chatArea').classList.remove('hidden');
-                    
-                    // Load messages
-                    await loadMessages(userId);
-                    
-                    // Scroll to bottom
-                    const messagesContainer = document.getElementById('messagesContainer');
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
+                // Redirect to chat.html with user ID
+                window.location.href = `/chat.html?user=${userId}`;
             } catch (error) {
                 console.error('Failed to open chat:', error);
             }
@@ -429,7 +455,7 @@
         async function loadMessages(userId) {
             try {
                 const response = await fetch(`/api/messages/${userId}`, {
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } 
                 });
                 const data = await response.json();
                 
@@ -491,7 +517,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': localStorage.getItem('token')
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify({
                         receiverId: currentChatUser._id,
@@ -581,7 +607,7 @@
             
             try {
                 const response = await fetch(`/api/search/users?query=${encodeURIComponent(query)}`, {
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const data = await response.json();
                 
@@ -700,7 +726,7 @@
             try {
                 await fetch('/api/logout', {
                     method: 'POST',
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
             } catch (error) {
                 // Ignore errors
@@ -713,6 +739,53 @@
         // Attach media (simplified)
         function attachMedia() {
             alert('Media upload would be implemented with Cloudinary integration');
+        }
+        
+        // Filter conversations by search query
+        let allConversations = [];
+        
+        function filterConversations(query) {
+            const container = document.getElementById('conversationsList');
+            
+            if (!query || query.trim() === '') {
+                renderConversations(allConversations);
+                return;
+            }
+            
+            const lowerQuery = query.toLowerCase().trim();
+            const filtered = allConversations.filter(conv => {
+                const fullName = (conv.fullName || '').toLowerCase();
+                const nickname = (conv.nickname || '').toLowerCase();
+                const username = (conv.username || '').toLowerCase();
+                const university = (conv.university || '').toLowerCase();
+                const lastMessage = (conv.lastMessage?.text || '').toLowerCase();
+                
+                return fullName.includes(lowerQuery) || 
+                       nickname.includes(lowerQuery) || 
+                       username.includes(lowerQuery) || 
+                       university.includes(lowerQuery) ||
+                       lastMessage.includes(lowerQuery);
+            });
+            
+            renderConversations(filtered);
+        }
+        
+        // Update loadConversations to store all conversations
+        async function loadConversations() {
+            try {
+                const response = await fetch('/api/conversations', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    conversations = data.conversations;
+                    allConversations = data.conversations; // Store for filtering
+                    renderConversations(conversations);
+                }
+            } catch (error) {
+                console.error('Failed to load conversations:', error);
+            }
         }
     </script>
 </body>

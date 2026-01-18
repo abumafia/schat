@@ -214,15 +214,35 @@
             
             try {
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
                 if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    console.warn('Auth check returned non-ok status:', response.status);
+                } else {
+                    const data = await response.json();
+                    if (!data.success) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                    console.error('Network error during auth check');
+                } else {
                     localStorage.removeItem('token');
                     window.location.href = '/login.html';
                 }
-            } catch (error) {
-                window.location.href = '/login.html';
             }
         }
         
@@ -230,7 +250,7 @@
         async function loadCurrentUser() {
             try {
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const data = await response.json();
                 if (data.success) {
@@ -246,7 +266,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/groups/${groupId}`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -378,7 +398,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/groups/${groupId}/messages`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -442,7 +462,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': token
+                        // FIX: backend expects "Bearer <token>" (see authenticateToken split)
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         text: text
@@ -512,7 +533,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/groups/${groupId}/join`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -538,7 +559,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/groups/${groupId}/leave`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -569,7 +590,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/groups/${groupId}`, {
                     method: 'DELETE',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -629,7 +650,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/search/users?query=${encodeURIComponent(query)}`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -677,7 +698,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': token
+                        // FIX: backend expects "Bearer <token>"
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({ userId })
                 });
@@ -735,7 +757,7 @@
             try {
                 await fetch('/api/logout', {
                     method: 'POST',
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
             } catch (error) {
                 // Ignore errors

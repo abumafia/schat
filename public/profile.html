@@ -50,8 +50,8 @@
         <!-- Profile Header -->
         <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
             <!-- Cover Photo -->
-            <div class="h-48 gradient-bg relative">
-                <button onclick="changeCoverPhoto()" 
+            <div id="coverPhoto" class="h-48 gradient-bg relative" style="background-size: cover; background-position: center;">
+                <button id="changeCoverBtn" onclick="changeCoverPhoto()" 
                         class="absolute top-4 right-4 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/30 transition">
                     <i class="fas fa-camera mr-2"></i> Change Cover
                 </button>
@@ -63,7 +63,7 @@
                 <div class="relative inline-block">
                     <img id="profileAvatar" src="https://res.cloudinary.com/demo/image/upload/v1692290000/default-avatar.png" 
                          class="w-32 h-32 diamond-avatar border-4 border-white shadow-lg">
-                    <button onclick="changeAvatar()" 
+                    <button id="changeAvatarBtn" onclick="changeAvatar()" 
                             class="absolute bottom-2 right-2 bg-purple-600 text-white p-2 rounded-full hover:bg-purple-700 transition">
                         <i class="fas fa-camera text-sm"></i>
                     </button>
@@ -596,33 +596,91 @@
             
             try {
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
                 if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    console.warn('Auth check returned non-ok status:', response.status);
+                } else {
+                    const data = await response.json();
+                    if (!data.success) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                    console.error('Network error during auth check');
+                } else {
                     localStorage.removeItem('token');
                     window.location.href = '/login.html';
                 }
-            } catch (error) {
-                window.location.href = '/login.html';
             }
+        }
+        
+        // Get user ID from URL
+        function getUserIdFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('user');
         }
         
         // Load profile
         async function loadProfile() {
             try {
                 const token = localStorage.getItem('token');
-                const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
+                const userId = getUserIdFromURL();
+                
+                // If userId in URL, load that user's profile, otherwise load current user's profile
+                const endpoint = userId ? `/api/user/${userId}` : '/api/me';
+                
+                const response = await fetch(endpoint, {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    currentUser = data.user;
-                    renderProfile(data.user);
-                    loadProfileStats();
-                    loadActivity();
+                    const profileUser = userId ? data.user : data.user;
+                    currentUser = data.user; // Store for comparison
+                    
+                    // Check if viewing own profile or other user's profile
+                    const isOwnProfile = !userId || (currentUser._id === userId);
+                    
+                    renderProfile(profileUser, isOwnProfile);
+                    
+                    if (isOwnProfile) {
+                        loadProfileStats();
+                        loadActivity();
+                    } else {
+                        // Hide edit buttons for other users' profiles
+                        document.getElementById('saveBtn').classList.add('hidden');
+                        document.getElementById('changeCoverBtn').style.display = 'none';
+                        document.getElementById('changeAvatarBtn').style.display = 'none';
+                        document.querySelectorAll('.edit-btn, .edit-input').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                        
+                        // Add "Start Chat" button for other users
+                        const profileHeader = document.querySelector('.mt-4');
+                        if (profileHeader && !document.getElementById('startChatBtn')) {
+                            const chatBtn = document.createElement('button');
+                            chatBtn.id = 'startChatBtn';
+                            chatBtn.onclick = () => window.location.href = `/chat.html?user=${userId}`;
+                            chatBtn.className = 'gradient-bg text-white px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition';
+                            chatBtn.innerHTML = '<i class="fas fa-comment mr-2"></i> Start Chat';
+                            profileHeader.appendChild(chatBtn);
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load profile:', error);
@@ -630,11 +688,11 @@
         }
         
         // Render profile
-        function renderProfile(user) {
+        function renderProfile(user, isOwnProfile = true) {
             // Basic info
-            document.getElementById('profileAvatar').src = user.avatar;
-            document.getElementById('profileName').textContent = user.nickname;
-            document.getElementById('profileUsername').textContent = `@${user.username}`;
+            document.getElementById('profileAvatar').src = user.avatar || 'https://res.cloudinary.com/demo/image/upload/v1692290000/default-avatar.png';
+            document.getElementById('profileName').textContent = user.fullName || user.nickname || user.username || 'Unknown';
+            document.getElementById('profileUsername').textContent = `@${user.username || 'unknown'}`;
             document.getElementById('profileBio').textContent = user.bio || 'No bio yet';
             
             // Online status
@@ -643,10 +701,12 @@
             statusSpan.className = `w-2 h-2 rounded-full mr-2 ${user.isOnline ? 'bg-green-500' : 'bg-gray-400'}`;
             statusDiv.querySelector('span:last-child').textContent = user.isOnline ? 'Online' : 'Offline';
             
-            // Edit fields
-            document.getElementById('editFullName').value = user.fullName || '';
-            document.getElementById('editNickname').value = user.nickname || '';
-            document.getElementById('editUsername').value = user.username || '';
+            // Edit fields (only if own profile)
+            if (isOwnProfile) {
+                document.getElementById('editFullName').value = user.fullName || '';
+                document.getElementById('editNickname').value = user.nickname || '';
+                document.getElementById('editUsername').value = user.username || '';
+            }
             document.getElementById('editPhone').value = user.phone || '';
             document.getElementById('editEmail').value = user.email || '';
             document.getElementById('editBio').value = user.bio || '';
@@ -703,7 +763,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch('/api/profile/stats', {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -723,7 +783,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch('/api/profile/activity', {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -804,7 +864,7 @@
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': token
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(updates)
                 });
@@ -885,6 +945,12 @@
         
         async function uploadAvatar(file) {
             try {
+                // Show loading
+                const loadingText = document.createElement('div');
+                loadingText.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg z-50';
+                loadingText.textContent = 'Uploading avatar...';
+                document.body.appendChild(loadingText);
+                
                 const formData = new FormData();
                 formData.append('avatar', file);
                 
@@ -892,7 +958,7 @@
                 const response = await fetch('/api/upload-avatar', {
                     method: 'POST',
                     headers: {
-                        'Authorization': token
+                        'Authorization': `Bearer ${token}`
                     },
                     body: formData
                 });
@@ -900,13 +966,19 @@
                 const data = await response.json();
                 if (data.success) {
                     document.getElementById('profileAvatar').src = data.avatar;
-                    document.getElementById('currentAvatar').src = data.avatar;
+                    if (document.getElementById('currentAvatar')) {
+                        document.getElementById('currentAvatar').src = data.avatar;
+                    }
                     currentUser.avatar = data.avatar;
-                    alert('Avatar updated successfully!');
+                    loadingText.textContent = 'Avatar updated successfully!';
+                    loadingText.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg z-50';
+                    setTimeout(() => loadingText.remove(), 2000);
+                } else {
+                    throw new Error(data.error || 'Upload failed');
                 }
             } catch (error) {
                 console.error('Failed to upload avatar:', error);
-                alert('Failed to upload avatar');
+                alert('Failed to upload avatar: ' + (error.message || 'Unknown error'));
             }
         }
         
@@ -921,7 +993,57 @@
         
         // Change cover photo
         function changeCoverPhoto() {
-            alert('Cover photo upload would be implemented');
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    await uploadCoverPhoto(file);
+                }
+            };
+            input.click();
+        }
+        
+        async function uploadCoverPhoto(file) {
+            try {
+                // Show loading
+                const loadingText = document.createElement('div');
+                loadingText.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg z-50';
+                loadingText.textContent = 'Uploading cover photo...';
+                document.body.appendChild(loadingText);
+                
+                const formData = new FormData();
+                formData.append('avatar', file); // Using same endpoint for now
+                
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/upload-avatar', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Update cover photo (using gradient for now, but can be changed to use coverPhoto field)
+                    const coverPhotoDiv = document.querySelector('.h-48.gradient-bg');
+                    if (coverPhotoDiv) {
+                        coverPhotoDiv.style.backgroundImage = `url(${data.avatar})`;
+                        coverPhotoDiv.style.backgroundSize = 'cover';
+                        coverPhotoDiv.style.backgroundPosition = 'center';
+                    }
+                    loadingText.textContent = 'Cover photo updated successfully!';
+                    loadingText.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg z-50';
+                    setTimeout(() => loadingText.remove(), 2000);
+                } else {
+                    throw new Error(data.error || 'Upload failed');
+                }
+            } catch (error) {
+                console.error('Failed to upload cover photo:', error);
+                alert('Failed to upload cover photo: ' + (error.message || 'Unknown error'));
+            }
         }
         
         // Share profile
@@ -1080,7 +1202,7 @@
             try {
                 await fetch('/api/logout', {
                     method: 'POST',
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
             } catch (error) {
                 // Ignore errors

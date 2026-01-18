@@ -347,15 +347,35 @@
             
             try {
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
                 if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    console.warn('Auth check returned non-ok status:', response.status);
+                } else {
+                    const data = await response.json();
+                    if (!data.success) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                    console.error('Network error during auth check');
+                } else {
                     localStorage.removeItem('token');
                     window.location.href = '/login.html';
                 }
-            } catch (error) {
-                window.location.href = '/login.html';
             }
         }
         
@@ -363,7 +383,7 @@
         async function loadCurrentUser() {
             try {
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': localStorage.getItem('token') }
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const data = await response.json();
                 if (data.success) {
@@ -379,7 +399,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -490,7 +510,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}/posts?page=${page}&limit=10`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -655,7 +675,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}/subscribe`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -683,7 +703,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}/unsubscribe`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -713,7 +733,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}/subscribers`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -826,21 +846,19 @@
             
             try {
                 const token = localStorage.getItem('token');
-                const formData = new FormData();
-                formData.append('content', content);
-                formData.append('type', postType);
-                
-                const mediaFile = document.getElementById('mediaUpload').files[0];
-                if (mediaFile) {
-                    formData.append('media', mediaFile);
-                }
-                
+
+                // Server expects JSON body for channel posts (not multipart/form-data).
+                // We'll send content + type. Media upload can be added later with multer/cloudinary.
                 const response = await fetch(`/api/channels/${channelId}/posts`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': token
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
-                    body: formData
+                    body: JSON.stringify({
+                        content,
+                        type: postType
+                    })
                 });
                 
                 const data = await response.json();
@@ -862,7 +880,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/posts/${postId}`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -988,7 +1006,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/posts/${postId}/comments`, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -1046,7 +1064,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': token
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({ content })
                 });
@@ -1069,7 +1087,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/posts/${postId}/like`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -1116,7 +1134,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/posts/${postId}/save`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -1134,7 +1152,7 @@
                 const token = localStorage.getItem('token');
                 await fetch(`/api/posts/${postId}/view`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
             } catch (error) {
                 console.error('Failed to increment view count:', error);

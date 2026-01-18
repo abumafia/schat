@@ -162,20 +162,31 @@
             }, 5000);
         }
         
-        // Check if already logged in
+        // Check if user is already logged in
         async function checkAuth() {
             try {
                 const token = localStorage.getItem('token');
                 if (token) {
                     const response = await fetch('/api/me', {
-                        headers: { 'Authorization': token }
+                        headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (response.ok) {
-                        window.location.href = '/messages.html';
+                        const data = await response.json();
+                        if (data.success) {
+                            // User is already logged in, redirect to messages
+                            window.location.href = '/messages.html';
+                        } else {
+                            // Invalid token, remove it
+                            localStorage.removeItem('token');
+                        }
+                    } else {
+                        // Invalid token, remove it
+                        localStorage.removeItem('token');
                     }
                 }
             } catch (error) {
-                // Not logged in
+                // Not logged in or error, stay on login page
+                console.log('Not authenticated, staying on login page');
             }
         }
         

@@ -286,14 +286,41 @@
             
             try {
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
+                
                 if (!response.ok) {
+                    // If 401 or 403, token is invalid
+                    if (response.status === 401 || response.status === 403) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    // For other errors, try to continue (might be server issue)
+                    console.warn('Auth check returned non-ok status:', response.status);
+                } else {
+                    const data = await response.json();
+                    if (!data.success) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                // Only redirect on network errors, not on server errors
+                // If MongoDB is down, we might want to show an error instead
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                    // Network error - might be server down
+                    console.error('Network error during auth check');
+                    // Don't redirect immediately, might be temporary
+                } else {
                     localStorage.removeItem('token');
                     window.location.href = '/login.html';
                 }
-            } catch (error) {
-                window.location.href = '/login.html';
             }
         }
         
@@ -302,7 +329,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch('/api/me', {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 if (data.success) {
@@ -328,7 +355,7 @@
                 }
                 
                 const response = await fetch(endpoint, {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -557,7 +584,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch('/api/channels/stats', {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -577,7 +604,7 @@
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch('/api/channels/featured', {
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -693,7 +720,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}/subscribe`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -732,7 +759,7 @@
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/channels/${channelId}/unsubscribe`, {
                     method: 'POST',
-                    headers: { 'Authorization': token }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 const data = await response.json();
@@ -782,7 +809,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': token
+                        // FIX: backend expects "Bearer <token>" (see authenticateToken split)
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(data)
                 });
