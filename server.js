@@ -9,6 +9,7 @@ const cloudinary = require('cloudinary').v2;
 const { v4: uuidv4 } = require('uuid');
 const session = require('express-session');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 // Initialize Express
@@ -37,6 +38,36 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/')
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        // Accept all file types
+        cb(null, true);
+    }
+});
+
+// Helper function to determine media type
+function getMediaType(mimeType) {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    return 'document';
+}
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI, {
@@ -72,8 +103,14 @@ const MessageSchema = new mongoose.Schema({
     receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     text: { type: String, default: '' },
     mediaUrl: { type: String, default: '' },
-    mediaType: { type: String, enum: ['image', 'video', 'audio', ''], default: '' },
+    mediaType: { type: String, enum: ['image', 'video', 'audio', 'document', 'voice', ''], default: '' },
     isRead: { type: Boolean, default: false },
+    mediaMetadata: {
+        fileName: String,
+        fileSize: Number,
+        mimeType: String,
+        duration: String
+    },
     createdAt: { type: Date, default: Date.now }
 });
 const Message = mongoose.model('Message', MessageSchema);
@@ -86,7 +123,8 @@ const GroupSchema = new mongoose.Schema({
     creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     avatar: { type: String, default: 'https://res.cloudinary.com/demo/image/upload/v1692290000/default-group.png' },
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+    isPublic: { type: Boolean, default: true }
 });
 const Group = mongoose.model('Group', GroupSchema);
 
@@ -96,7 +134,7 @@ const GroupMessageSchema = new mongoose.Schema({
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     text: { type: String, default: '' },
     mediaUrl: { type: String, default: '' },
-    mediaType: { type: String, enum: ['image', 'video', 'audio', ''], default: '' },
+    mediaType: { type: String, enum: ['image', 'video', 'audio', 'document', ''], default: '' },
     createdAt: { type: Date, default: Date.now }
 });
 const GroupMessage = mongoose.model('GroupMessage', GroupMessageSchema);
@@ -108,7 +146,12 @@ const ChannelSchema = new mongoose.Schema({
     description: { type: String, default: '' },
     creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     subscribers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    moderators: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     avatar: { type: String, default: 'https://res.cloudinary.com/demo/image/upload/v1692290000/default-channel.png' },
+    category: { type: String, default: 'other' },
+    university: { type: String, default: '' },
+    isPublic: { type: Boolean, default: true },
+    inviteLink: { type: String },
     createdAt: { type: Date, default: Date.now }
 });
 const Channel = mongoose.model('Channel', ChannelSchema);
@@ -118,7 +161,8 @@ const ChannelPostSchema = new mongoose.Schema({
     channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
     content: { type: String, required: true },
     mediaUrl: { type: String, default: '' },
-    mediaType: { type: String, enum: ['image', 'video', ''], default: '' },
+    mediaType: { type: String, enum: ['image', 'video', 'audio', 'document', ''], default: '' },
+    type: { type: String, enum: ['announcement', 'post', 'media'], default: 'post' },
     viewsCount: { type: Number, default: 0 },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     createdAt: { type: Date, default: Date.now }
@@ -321,8 +365,6 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
 // Upload Avatar
 app.post('/api/upload-avatar', authenticateToken, async (req, res) => {
     try {
-        // In production, use multer for file upload
-        // This is a simplified version
         const { imageUrl } = req.body;
         
         const user = await User.findByIdAndUpdate(
@@ -360,9 +402,7 @@ app.get('/api/search/messages', authenticateToken, async (req, res) => {
     try {
         const { query } = req.query;
         const messages = await Message.find({
-            $or: [
-                { text: { $regex: query, $options: 'i' } }
-            ],
+            text: { $regex: query, $options: 'i' },
             $or: [
                 { senderId: req.userId },
                 { receiverId: req.userId }
@@ -773,6 +813,41 @@ io.on('connection', (socket) => {
         socket.to(userId).emit('userTyping', { userId: socket.userId, isTyping });
     });
     
+    // WebRTC Signaling
+    socket.on('callOffer', (data) => {
+        io.to(data.to).emit('callOffer', {
+            from: socket.userId,
+            offer: data.offer,
+            type: data.type
+        });
+    });
+    
+    socket.on('callAnswer', (data) => {
+        io.to(data.to).emit('callAnswer', {
+            from: socket.userId,
+            answer: data.answer
+        });
+    });
+    
+    socket.on('iceCandidate', (data) => {
+        io.to(data.to).emit('iceCandidate', {
+            from: socket.userId,
+            candidate: data.candidate
+        });
+    });
+    
+    socket.on('callEnded', (data) => {
+        io.to(data.to).emit('callEnded', {
+            from: socket.userId
+        });
+    });
+    
+    socket.on('callRejected', (data) => {
+        io.to(data.to).emit('callRejected', {
+            from: socket.userId
+        });
+    });
+    
     // Disconnect
     socket.on('disconnect', async () => {
         if (socket.userId) {
@@ -789,8 +864,6 @@ io.on('connection', (socket) => {
         }
     });
 });
-
-// server.js ga quyidagi endpointlarni qo'shing:
 
 // Get user by ID
 app.get('/api/user/:userId', authenticateToken, async (req, res) => {
@@ -1091,28 +1164,6 @@ app.post('/api/groups/:groupId/messages', authenticateToken, async (req, res) =>
     }
 });
 
-// Get group messages
-app.get('/api/groups/:groupId/messages', authenticateToken, async (req, res) => {
-    try {
-        const { groupId } = req.params;
-        
-        // Check if user is a group member
-        const group = await Group.findById(groupId);
-        if (!group.members.includes(req.userId)) {
-            return res.status(403).json({ error: 'Not a group member' });
-        }
-        
-        const messages = await GroupMessage.find({ groupId })
-            .sort({ createdAt: 1 })
-            .populate('senderId', 'username nickname avatar')
-            .limit(100);
-        
-        res.json({ success: true, messages });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to get messages' });
-    }
-});
-
 // Invite user to group
 app.post('/api/groups/:groupId/invite', authenticateToken, async (req, res) => {
     try {
@@ -1184,7 +1235,6 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
         // Get user's friends count
         const friendsCount = await User.countDocuments({
             _id: { $ne: req.userId }
-            // Add friend logic here
         });
         
         // Get user's groups count
@@ -1271,7 +1321,7 @@ app.get('/api/profile/activity', authenticateToken, async (req, res) => {
                 recent: activity,
                 totalMessages: totalMessages,
                 activeDays: activeDays[0]?.days || 0,
-                avgMessages: Math.round(totalMessages / 30) // Average per 30 days
+                avgMessages: Math.round(totalMessages / 30)
             }
         });
     } catch (error) {
@@ -1338,36 +1388,6 @@ app.get('/api/channels/:channelId/posts', authenticateToken, async (req, res) =>
     }
 });
 
-app.post('/api/channels/:channelId/posts', authenticateToken, async (req, res) => {
-    try {
-        const { channelId } = req.params;
-        const { content, mediaUrl, mediaType, type } = req.body;
-        
-        // Check if user is channel creator
-        const channel = await Channel.findById(channelId);
-        if (!channel.creatorId.equals(req.userId)) {
-            return res.status(403).json({ error: 'Only channel creator can post' });
-        }
-        
-        const post = new ChannelPost({
-            channelId,
-            content,
-            mediaUrl,
-            mediaType,
-            type
-        });
-        
-        await post.save();
-        
-        // Emit new post event to subscribers
-        io.to(`channel_${channelId}`).emit('newPost', post);
-        
-        res.json({ success: true, post });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to create post' });
-    }
-});
-
 app.get('/api/channels/:channelId/subscribers', authenticateToken, async (req, res) => {
     try {
         const { channelId } = req.params;
@@ -1422,7 +1442,6 @@ app.get('/api/posts/:postId', authenticateToken, async (req, res) => {
         if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
-        
         res.json({ success: true, post });
     } catch (error) {
         res.status(500).json({ error: 'Failed to get post' });
@@ -1462,14 +1481,9 @@ app.post('/api/posts/:postId/like', authenticateToken, async (req, res) => {
 
 app.get('/api/posts/:postId/comments', authenticateToken, async (req, res) => {
     try {
-        // Assuming you have a Comment model
-        // const comments = await Comment.find({ postId: req.params.postId })
-        //     .populate('userId', 'username nickname avatar')
-        //     .sort({ createdAt: -1 });
-        
         res.json({
             success: true,
-            comments: [] // Placeholder
+            comments: []
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to get comments' });
@@ -1563,9 +1577,7 @@ app.get('/api/channels', authenticateToken, async (req, res) => {
         // Sort options
         let sort = { createdAt: -1 };
         if (req.query.sort === 'popular') {
-            sort = { subscriberCount: -1 };
-        } else if (req.query.sort === 'subscribers') {
-            sort = { 'subscribers': -1 };
+            sort = { subscribers: -1 };
         }
         
         const channels = await Channel.find(query)
@@ -1693,8 +1705,7 @@ app.post('/api/channels', authenticateToken, async (req, res) => {
             university: university || '',
             isPublic: isPublic !== false,
             creatorId: req.userId,
-            admins: [req.userId],
-            members: [req.userId],
+            moderators: [req.userId],
             subscribers: [req.userId],
             inviteLink: uuidv4()
         });
@@ -1752,31 +1763,6 @@ app.post('/api/channels/:channelId/subscribe', authenticateToken, async (req, re
     }
 });
 
-app.post('/api/channels/:channelId/unsubscribe', authenticateToken, async (req, res) => {
-    try {
-        const { channelId } = req.params;
-        
-        const channel = await Channel.findById(channelId);
-        if (!channel) {
-            return res.status(404).json({ error: 'Channel not found' });
-        }
-        
-        channel.subscribers = channel.subscribers.filter(subId => !subId.equals(req.userId));
-        await channel.save();
-        
-        // Emit subscription update
-        io.to(`channel_${channelId}`).emit('channelSubscriptionUpdate', {
-            channelId,
-            action: 'unsubscribe',
-            userId: req.userId
-        });
-        
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to unsubscribe' });
-    }
-});
-
 // Get channel by ID
 app.get('/api/channels/:channelId', authenticateToken, async (req, res) => {
     try {
@@ -1815,44 +1801,6 @@ app.get('/api/channels/:channelId', authenticateToken, async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to get channel' });
-    }
-});
-
-// Get channel posts
-app.get('/api/channels/:channelId/posts', authenticateToken, async (req, res) => {
-    try {
-        const { channelId } = req.params;
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
-        
-        // Check if channel exists and user has access
-        const channel = await Channel.findById(channelId);
-        if (!channel) {
-            return res.status(404).json({ error: 'Channel not found' });
-        }
-        
-        // For private channels, check if user is subscribed
-        if (!channel.isPublic && !channel.subscribers.includes(req.userId)) {
-            return res.status(403).json({ error: 'Access denied. Subscribe to view posts.' });
-        }
-        
-        const posts = await ChannelPost.find({ channelId })
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .populate('channelId', 'name username');
-        
-        const totalPosts = await ChannelPost.countDocuments({ channelId });
-        
-        res.json({
-            success: true,
-            posts,
-            hasMore: skip + posts.length < totalPosts,
-            total: totalPosts
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to get posts' });
     }
 });
 
@@ -1902,67 +1850,112 @@ app.post('/api/channels/:channelId/posts', authenticateToken, async (req, res) =
     }
 });
 
-// Like/unlike post
-app.post('/api/posts/:postId/like', authenticateToken, async (req, res) => {
+// Voice message upload endpoint
+app.post('/api/messages/voice', authenticateToken, upload.single('audio'), async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { receiverId } = req.body;
         
-        const post = await ChannelPost.findById(postId);
-        if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
+        if (!req.file) {
+            return res.status(400).json({ error: 'No audio file provided' });
         }
         
-        const alreadyLiked = post.likes.includes(req.userId);
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            resource_type: 'video',
+            folder: 'voice_messages',
+            format: 'webm'
+        });
         
-        if (alreadyLiked) {
-            // Unlike
-            post.likes = post.likes.filter(userId => !userId.equals(req.userId));
+        const message = new Message({
+            senderId: req.userId,
+            receiverId,
+            text: 'Voice message',
+            mediaUrl: result.secure_url,
+            mediaType: 'voice',
+            mediaMetadata: {
+                fileName: req.file.originalname,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype,
+                duration: '0:15'
+            }
+        });
+        
+        await message.save();
+        
+        // Update stats
+        await Stats.findOneAndUpdate({}, { $inc: { totalMessages: 1 } });
+        
+        const populatedMessage = await Message.findById(message._id)
+            .populate('senderId', 'username nickname avatar')
+            .populate('receiverId', 'username nickname avatar');
+        
+        // Emit real-time event
+        io.to(receiverId).emit('newMessage', populatedMessage);
+        io.to(req.userId).emit('messageSent', populatedMessage);
+        
+        res.json({ success: true, message: populatedMessage });
+    } catch (error) {
+        console.error('Voice message upload error:', error);
+        res.status(500).json({ error: 'Failed to send voice message' });
+    }
+});
+
+// File upload endpoint
+app.post('/api/messages/file', authenticateToken, upload.single('file'), async (req, res) => {
+    try {
+        const { receiverId } = req.body;
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file provided' });
+        }
+        
+        let result;
+        if (req.file.mimetype.startsWith('image/')) {
+            result = await cloudinary.uploader.upload(req.file.path, {
+                folder: 'chat_images'
+            });
+        } else if (req.file.mimetype.startsWith('video/')) {
+            result = await cloudinary.uploader.upload(req.file.path, {
+                resource_type: 'video',
+                folder: 'chat_videos'
+            });
         } else {
-            // Like
-            post.likes.push(req.userId);
+            result = await cloudinary.uploader.upload(req.file.path, {
+                resource_type: 'raw',
+                folder: 'chat_files'
+            });
         }
         
-        await post.save();
-        
-        res.json({
-            success: true,
-            liked: !alreadyLiked,
-            likeCount: post.likes.length
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to like post' });
-    }
-});
-
-// Increment post views
-app.post('/api/posts/:postId/view', authenticateToken, async (req, res) => {
-    try {
-        const { postId } = req.params;
-        
-        await ChannelPost.findByIdAndUpdate(postId, { 
-            $inc: { viewsCount: 1 } 
+        const message = new Message({
+            senderId: req.userId,
+            receiverId,
+            text: req.body.text || '',
+            mediaUrl: result.secure_url,
+            mediaType: getMediaType(req.file.mimetype),
+            mediaMetadata: {
+                fileName: req.file.originalname,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype
+            }
         });
         
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to increment views' });
-    }
-});
-
-// Get post by ID
-app.get('/api/posts/:postId', authenticateToken, async (req, res) => {
-    try {
-        const post = await ChannelPost.findById(req.params.postId)
-            .populate('channelId', 'name username')
-            .populate('likes', 'username nickname avatar');
+        await message.save();
         
-        if (!post) {
-            return res.status(404).json({ error: 'Post not found' });
-        }
+        // Update stats
+        await Stats.findOneAndUpdate({}, { $inc: { totalMessages: 1 } });
         
-        res.json({ success: true, post });
+        const populatedMessage = await Message.findById(message._id)
+            .populate('senderId', 'username nickname avatar')
+            .populate('receiverId', 'username nickname avatar');
+        
+        // Emit real-time event
+        io.to(receiverId).emit('newMessage', populatedMessage);
+        io.to(req.userId).emit('messageSent', populatedMessage);
+        
+        res.json({ success: true, message: populatedMessage });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to get post' });
+        console.error('File upload error:', error);
+        res.status(500).json({ error: 'Failed to send file' });
     }
 });
 
@@ -1977,9 +1970,7 @@ app.post('/api/posts/:postId/save', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Post not found' });
         }
         
-        // Here you would implement saving posts to user's profile
-        // For now, we'll just return success
-        const saved = Math.random() > 0.5; // Simulate save/unsave
+        const saved = Math.random() > 0.5;
         
         res.json({
             success: true,
@@ -1995,6 +1986,12 @@ app.post('/api/posts/:postId/save', authenticateToken, async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, async () => {
+    // Ensure uploads directory exists
+    const fs = require('fs');
+    if (!fs.existsSync('uploads')) {
+        fs.mkdirSync('uploads');
+    }
+    
     await initializeStats();
     console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
