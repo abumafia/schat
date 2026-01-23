@@ -1,267 +1,625 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="uz" class="scroll-smooth">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - UniConnect</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .form-input {
-            transition: all 0.3s ease;
-        }
-        .form-input:focus {
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
-        }
-    </style>
-</head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
-    <div class="max-w-4xl w-full grid md:grid-cols-2 bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <!-- Left Side - Form -->
-        <div class="p-8 md:p-12">
-            <a href="/" class="inline-flex items-center text-purple-600 font-bold mb-8">
-                <i class="fas fa-arrow-left mr-2"></i> Asosiy Sahifaga qaytish
-            </a>
-            
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Hisob yarating</h1>
-            <p class="text-gray-600 mb-8">Allaqachon minglab foydalanuvchilar etiborini tortgan UniConnectga qo'shiling...</p>
-            
-            <form id="registerForm" class="space-y-6">
-                <!-- Row 1: Full Name & Nickname -->
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">To'liq ism *</label>
-                        <input type="text" name="fullName" required 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="John Doe">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Nickname *</label>
-                        <input type="text" name="nickname" required 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="johnny">
-                    </div>
-                </div>
-                
-                <!-- Username -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Foydalanuvchi nomi *</label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-3 text-gray-400">@</span>
-                        <input type="text" name="username" required 
-                               class="w-full pl-8 px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="johndoe">
-                        <div class="text-xs text-gray-500 mt-1">Har 15kunda 1marta almashtirish mumkin.</div>
-                    </div>
-                </div>
-                
-                <!-- University & Study Group -->
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Universitet *</label>
-                        <select name="university" required 
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
-                            <option value="">Universitet tanlang</option>
-                            <option value="Harvard University">Harvard University</option>
-                            <option value="Stanford University">Stanford University</option>
-                            <option value="MIT">Massachusetts Institute of Technology</option>
-                            <option value="Cambridge University">Cambridge University</option>
-                            <option value="Oxford University">Oxford University</option>
-                            <option value="Other">Other University</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Ta'lim guruhingiz *</label>
-                        <input type="text" name="studyGroup" required 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="CS-101, Math-202, etc.">
-                    </div>
-                </div>
-                
-                <!-- Phone & Email -->
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Telefon raqam *</label>
-                        <div class="relative">
-                            <span class="absolute left-3 top-3 text-gray-400">+998</span>
-                            <input type="tel" name="phone" required 
-                                   class="w-full pl-10 px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                   placeholder="555-123-4567">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email (Ixtiyoriy)</label>
-                        <input type="email" name="email" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="misol uchun: support@hallaym.site (muammolar uchun ushbu manzilga murojaat qiling)">
-                    </div>
-                </div>
-                
-                <!-- Bio -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Bio</label>
-                    <textarea name="bio" rows="3" 
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                              placeholder="Tell us about yourself..."></textarea>
-                </div>
-                
-                <!-- Password -->
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Parol *</label>
-                        <input type="password" name="password" required 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="••••••••">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Qayta kiriting *</label>
-                        <input type="password" name="confirmPassword" required 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                               placeholder="••••••••">
-                    </div>
-                </div>
-                
-                <!-- Submit Button -->
-                <button type="submit" 
-                        class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center justify-center">
-                    <i class="fas fa-user-plus mr-2"></i> Hisob Yarating
-                </button>
-                
-                <!-- Login Link -->
-                <div class="text-center">
-                    <p class="text-gray-600">Allaqachon hisobingiz bormi? 
-                        <a href="/login.html" class="text-purple-600 font-semibold hover:underline">Kirish</a>
-                    </p>
-                </div>
-            </form>
-            
-            <!-- Error/Success Messages -->
-            <div id="message" class="mt-4 hidden"></div>
-        </div>
-        
-        <!-- Right Side - Preview -->
-        <div class="gradient-bg text-white p-8 md:p-12 hidden md:flex flex-col justify-center">
-            <div class="text-center">
-                <div class="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6">
-                    <i class="fas fa-user-graduate text-4xl"></i>
-                </div>
-                <h2 class="text-2xl font-bold mb-4">UniConnectga xush kelibsiz</h2>
-                <p class="opacity-90 mb-8">Kurdoshlar bilan suhbatlashing, ilmiy guruhlarga qo'shiling, va Universitet yangiliklaridan boxabar bo'ling.</p>
-                
-                <div class="space-y-4">
-                    <div class="flex items-center">
-                        <i class="fas fa-check-circle text-green-300 mr-3"></i>
-                        <span>Real vaqtda suhbatlashish</span>
-                    </div>
-                    <div class="flex items-center">
-                        <i class="fas fa-check-circle text-green-300 mr-3"></i>
-                        <span>Study group collaboration</span>
-                    </div>
-                    <div class="flex items-center">
-                        <i class="fas fa-check-circle text-green-300 mr-3"></i>
-                        <span>Campus channel updates</span>
-                    </div>
-                    <div class="flex items-center">
-                        <i class="fas fa-check-circle text-green-300 mr-3"></i>
-                        <span>Secure and private</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ro‘yxatdan o‘tish — SChat</title>
+  <meta name="description" content="SChat’da ro‘yxatdan o‘ting: kanallar, guruhlar va real-time chat — barchasi bitta platformada." />
 
-    <script>
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            
-            // Validate passwords
-            if (data.password !== data.confirmPassword) {
-                showMessage('Passwords do not match!', 'error');
-                return;
-            }
-            
-            // Remove confirmPassword from data
-            delete data.confirmPassword;
-            
-            // Show loading
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Creating Account...';
-            submitBtn.disabled = true;
-            
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showMessage('Account created successfully! Redirecting...', 'success');
-                    localStorage.setItem('token', result.token);
-                    setTimeout(() => {
-                        window.location.href = '/messages.html';
-                    }, 1500);
-                } else {
-                    showMessage(result.error || 'Registration failed!', 'error');
-                }
-            } catch (error) {
-                showMessage('Network error. Please try again.', 'error');
-                console.error('Registration error:', error);
-            } finally {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }
-        });
-        
-        function showMessage(text, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.textContent = text;
-            messageDiv.className = `p-3 rounded-lg ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
-            messageDiv.classList.remove('hidden');
-            
-            setTimeout(() => {
-                messageDiv.classList.add('hidden');
-            }, 5000);
+  <script>
+    tailwind = {
+      config: {
+        darkMode: 'class',
+        theme: { extend: {
+          fontFamily: { inter: ['Inter','ui-sans-serif','system-ui'] },
+          boxShadow: { glass: '0 20px 60px rgba(0,0,0,.18)' },
+          keyframes: {
+            floaty: { '0%,100%': { transform: 'translateY(0px)' }, '50%': { transform: 'translateY(-10px)' } },
+            shimmer: { '0%': { backgroundPosition: '0% 50%' }, '100%': { backgroundPosition: '100% 50%' } },
+            pop: { '0%': { transform: 'scale(.98)', opacity: .0 }, '100%': { transform: 'scale(1)', opacity: 1 } }
+          },
+          animation: {
+            floaty: 'floaty 7s ease-in-out infinite',
+            shimmer: 'shimmer 6s ease-in-out infinite',
+            pop: 'pop .45s ease-out both'
+          }
+        }}
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <style>
+    :root{
+      --glass-bg: rgba(255,255,255,.58);
+      --glass-brd: rgba(255,255,255,.36);
+      --muted: rgba(15,23,42,.72);
+      --muted2: rgba(15,23,42,.55);
+      --grid: rgba(15,23,42,.06);
+      --ring: rgba(99,102,241,.45);
+      --ok: rgba(34,197,94,.18);
+      --bad: rgba(239,68,68,.18);
+    }
+    .dark{
+      --glass-bg: rgba(2,6,23,.58);
+      --glass-brd: rgba(148,163,184,.16);
+      --muted: rgba(226,232,240,.78);
+      --muted2: rgba(226,232,240,.55);
+      --grid: rgba(148,163,184,.08);
+      --ring: rgba(236,72,153,.35);
+      --ok: rgba(34,197,94,.14);
+      --bad: rgba(239,68,68,.14);
+    }
+    body{ font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .muted{ color: var(--muted); }
+    .muted2{ color: var(--muted2); }
+    .glass{
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-brd);
+      box-shadow: 0 20px 60px rgba(0,0,0,.18);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .btn-primary{ background: linear-gradient(135deg, rgba(99,102,241,1), rgba(236,72,153,1)); }
+    .btn-primary:hover{ filter: brightness(1.05); }
+    .btn-ghost:hover{ background: rgba(148,163,184,.12); }
+    .glow-ring:focus{ outline:none; box-shadow: 0 0 0 5px var(--ring); }
+
+    .bg-orbs{
+      position: fixed; inset: 0; z-index: -2; overflow: hidden;
+      background:
+        radial-gradient(1200px 600px at 12% 12%, rgba(99,102,241,.38), transparent 60%),
+        radial-gradient(900px 520px at 88% 18%, rgba(236,72,153,.28), transparent 60%),
+        radial-gradient(1000px 700px at 50% 92%, rgba(34,197,94,.22), transparent 60%),
+        linear-gradient(180deg, rgba(248,250,252,1), rgba(241,245,249,1));
+    }
+    .dark .bg-orbs{
+      background:
+        radial-gradient(1200px 600px at 12% 12%, rgba(99,102,241,.24), transparent 60%),
+        radial-gradient(900px 520px at 88% 18%, rgba(236,72,153,.19), transparent 60%),
+        radial-gradient(1000px 700px at 50% 92%, rgba(34,197,94,.14), transparent 60%),
+        linear-gradient(180deg, rgba(2,6,23,1), rgba(15,23,42,1));
+    }
+    .bg-grid{
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px),
+                        linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+      background-size: 70px 70px;
+      mask-image: radial-gradient(closest-side at 50% 35%, black 0%, transparent 70%);
+      opacity: .85;
+    }
+    .u-anim{
+      background: linear-gradient(90deg, rgba(99,102,241,1), rgba(236,72,153,1));
+      background-size: 200% 200%;
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      animation: shimmer 6s ease-in-out infinite;
+    }
+
+    .field{
+      background: rgba(255,255,255,.38);
+      border: 1px solid rgba(255,255,255,.28);
+    }
+    .dark .field{
+      background: rgba(2,6,23,.35);
+      border: 1px solid rgba(148,163,184,.18);
+    }
+    .field:focus{
+      outline: none;
+      box-shadow: 0 0 0 5px var(--ring);
+      border-color: transparent;
+    }
+
+    .g-border{ position: relative; }
+    .g-border:before{
+      content:"";
+      position:absolute; inset:-1px; border-radius: 1.5rem;
+      background: linear-gradient(135deg, rgba(99,102,241,.55), rgba(236,72,153,.45), rgba(34,197,94,.35));
+      z-index:-1;
+    }
+    .panel-pop{ animation: pop .45s ease-out both; }
+
+    .dark .robot-head{ fill: rgba(2,6,23,.55); }
+    .dark .robot-visor{ fill: rgba(226,232,240,.08); }
+    .dark .eye-fill{ fill: rgba(226,232,240,.80); }
+  </style>
+
+  <script>
+    (function(){
+      const key='theme';
+      const saved=localStorage.getItem(key);
+      const prefersDark=window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const mode=saved || (prefersDark?'dark':'light');
+      if(mode==='dark') document.documentElement.classList.add('dark');
+    })();
+  </script>
+</head>
+
+<body class="min-h-screen text-slate-900 dark:text-slate-100">
+  <div class="bg-orbs"></div>
+  <div class="bg-grid"></div>
+
+  <header class="sticky top-0 z-50">
+    <div class="mx-auto max-w-6xl px-4 py-4">
+      <div class="glass rounded-3xl px-4 py-3 flex items-center justify-between">
+        <a href="/index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl btn-primary flex items-center justify-center text-white shadow-glass">
+            <i class="fa-solid fa-graduation-cap"></i>
+          </div>
+          <div class="leading-tight">
+            <div class="font-extrabold tracking-tight">SChat</div>
+            <div class="text-xs muted">Talabalar uchun platforma</div>
+          </div>
+        </a>
+
+        <div class="flex items-center gap-2">
+          <button id="themeToggle" class="glass rounded-xl px-3 py-2 text-sm font-extrabold muted btn-ghost glow-ring" title="Tungi/Kunduzgi">
+            <i id="themeIcon" class="fa-solid fa-moon"></i>
+            <span class="ml-2 hidden sm:inline" id="themeLabel">Tungi</span>
+          </button>
+          <a href="/login.html" class="glass rounded-xl px-4 py-2 text-sm font-bold btn-ghost glow-ring">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span class="ml-2 hidden sm:inline">Kirish</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-10">
+    <div class="grid lg:grid-cols-2 gap-6 items-start">
+
+      <!-- Robot panel -->
+      <section class="glass rounded-3xl p-6 sm:p-7 g-border panel-pop">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm font-semibold muted">
+              <i class="fa-solid fa-sparkles"></i>
+              <span>Ro‘yxatdan o‘tish</span>
+              <span class="mx-2 w-1 h-1 rounded-full bg-slate-400/40"></span>
+              <span class="muted2">yoqimli onboarding</span>
+            </div>
+
+            <h2 class="mt-4 text-2xl sm:text-3xl font-black tracking-tight">
+              Parolni tekshirish ham <span class="u-anim">qiziqarli</span> bo‘lsin
+            </h2>
+            <p class="mt-2 text-sm sm:text-base muted2">
+              Parol yashirilsa robotcha ko‘zini yumadi, ko‘rsatilsa bitta ko‘zi bilan “tekshiradi”.
+              Parollar mos kelmasa — “xafa”.
+            </p>
+          </div>
+
+          <div class="w-28 sm:w-32 shrink-0 select-none">
+            <svg id="robot" viewBox="0 0 220 220" class="w-full h-auto">
+              <defs>
+                <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="rgba(99,102,241,1)"/>
+                  <stop offset="1" stop-color="rgba(236,72,153,1)"/>
+                </linearGradient>
+              </defs>
+
+              <g>
+                <path d="M110 18 C95 18 92 40 110 40 C128 40 125 18 110 18Z" fill="url(#rg)" opacity="0.9"/>
+                <path d="M110 40 L110 62" stroke="rgba(148,163,184,.8)" stroke-width="8" stroke-linecap="round"/>
+                <circle cx="110" cy="14" r="10" fill="url(#rg)"/>
+              </g>
+
+              <g>
+                <rect x="40" y="56" width="140" height="120" rx="36" fill="rgba(255,255,255,.70)" class="robot-head"/>
+                <rect x="60" y="86" width="100" height="54" rx="22" fill="rgba(15,23,42,.08)" class="robot-visor"/>
+              </g>
+
+              <g id="eyes" transform="translate(0,0)">
+                <g id="eyeL" transform="translate(92 112)">
+                  <circle r="14" fill="rgba(2,6,23,.75)" class="eye-fill"/>
+                  <circle r="4" cx="4" cy="-2" fill="rgba(255,255,255,.9)"/>
+                  <path id="blinkL" d="M-14 0 Q0 10 14 0" stroke="rgba(2,6,23,.55)" stroke-width="4" stroke-linecap="round" fill="none" opacity="0"/>
+                </g>
+                <g id="eyeR" transform="translate(128 112)">
+                  <circle r="14" fill="rgba(2,6,23,.75)" class="eye-fill"/>
+                  <circle r="4" cx="4" cy="-2" fill="rgba(255,255,255,.9)"/>
+                  <path id="blinkR" d="M-14 0 Q0 10 14 0" stroke="rgba(2,6,23,.55)" stroke-width="4" stroke-linecap="round" fill="none" opacity="0"/>
+                </g>
+              </g>
+
+              <g id="mouthHappy" opacity="1">
+                <path d="M88 152 Q110 166 132 152" stroke="rgba(2,6,23,.55)" stroke-width="6" stroke-linecap="round" fill="none"/>
+              </g>
+              <g id="mouthSad" opacity="0">
+                <path d="M88 164 Q110 150 132 164" stroke="rgba(2,6,23,.55)" stroke-width="6" stroke-linecap="round" fill="none"/>
+              </g>
+
+              <circle cx="74" cy="154" r="6" fill="url(#rg)" opacity=".65"/>
+              <circle cx="146" cy="154" r="6" fill="url(#rg)" opacity=".65"/>
+            </svg>
+
+            <div class="mt-2 text-center text-xs muted2">
+              <span id="robotHint">Parol: bekitilgan</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 grid sm:grid-cols-3 gap-3">
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs font-extrabold muted">Maslahat</div>
+            <div class="mt-1 text-sm muted2">Kamida 6 belgi, harf+raqam aralash bo‘lsa zo‘r.</div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs font-extrabold muted">Tezlik</div>
+            <div class="mt-1 text-sm muted2">Maydonlar avtomatik validatsiya bilan ishlaydi.</div>
+          </div>
+          <div class="glass rounded-2xl p-4">
+            <div class="text-xs font-extrabold muted">Xavfsizlik</div>
+            <div class="mt-1 text-sm muted2">Parolni ko‘rsatish faqat sizga ko‘rinadi.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Form panel -->
+      <section class="glass rounded-3xl p-8 panel-pop">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div class="text-sm font-extrabold">Hisob yaratish</div>
+            <div class="text-xs muted2 mt-1">Maydonlarni to‘ldiring — keyin platformani aylab chiqasiz</div>
+          </div>
+          <div id="message" class="hidden text-sm font-bold px-3 py-2 rounded-xl glass"></div>
+        </div>
+
+        <form id="registerForm" class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label class="text-xs font-extrabold muted">To‘liq ism</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-id-card absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="fullName" placeholder="Masalan: Ali Valiyev" required />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Laqab (nickname)</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-face-smile absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="nickname" placeholder="Masalan: Ali" />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Foydalanuvchi nomi (username)</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-at absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="username" placeholder="Masalan: ali_uz" required />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Universitet</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-building-columns absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="university" placeholder="Masalan: TATU" required />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">O‘quv guruhi</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-users-rectangle absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="studyGroup" placeholder="Masalan: 21-01" />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Telefon</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="phone" placeholder="+998 90 123 45 67" />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Email</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-envelope absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input class="field w-full rounded-2xl px-11 py-3 text-sm" name="email" placeholder="ali@example.com" required />
+            </div>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="text-xs font-extrabold muted">Bio</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-pen absolute left-4 top-4 muted2"></i>
+              <textarea class="field w-full rounded-2xl px-11 py-3 text-sm min-h-[92px]" name="bio" placeholder="Qisqacha: yo‘nalish, qiziqishlar, maqsad..."></textarea>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Parol</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input id="password" class="field w-full rounded-2xl px-11 pr-12 py-3 text-sm" type="password" name="password" placeholder="Kamida 6 ta belgi" required />
+              <button type="button" id="togglePassword"
+                      class="absolute right-3 top-1/2 -translate-y-1/2 glass rounded-xl px-3 py-2 btn-ghost glow-ring"
+                      aria-label="Parolni ko‘rsatish/bekitish" title="Ko‘rsatish/Bekitish">
+                <i id="toggleIcon" class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-extrabold muted">Parolni tasdiqlang</label>
+            <div class="mt-2 relative">
+              <i class="fa-solid fa-lock-open absolute left-4 top-1/2 -translate-y-1/2 muted2"></i>
+              <input id="confirmPassword" class="field w-full rounded-2xl px-11 py-3 text-sm" type="password" name="confirmPassword" placeholder="Parolni qayta kiriting" required />
+            </div>
+            <div id="pwMatchHint" class="mt-2 text-xs muted2 hidden"></div>
+          </div>
+
+          <div class="sm:col-span-2 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center mt-2">
+            <button type="submit" id="submitBtn" class="btn-primary text-white rounded-2xl px-6 py-3 font-extrabold glow-ring">
+              Hisob yaratish <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+
+            <a href="/login.html" class="glass rounded-2xl px-6 py-3 font-extrabold btn-ghost text-center glow-ring">
+              Kirish
+            </a>
+          </div>
+
+          <div class="sm:col-span-2 text-xs muted2 mt-2">
+            Ro‘yxatdan o‘tish orqali siz platforma qoidalariga rozilik bildirasiz.
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function(){
+      const key='theme';
+      const html=document.documentElement;
+      const btn=document.getElementById('themeToggle');
+      const icon=document.getElementById('themeIcon');
+      const label=document.getElementById('themeLabel');
+
+      function apply(mode){
+        if(mode==='dark') html.classList.add('dark'); else html.classList.remove('dark');
+        localStorage.setItem(key, mode);
+        if(icon) icon.className = mode==='dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        if(label) label.textContent = mode==='dark' ? 'Kunduzgi' : 'Tungi';
+      }
+
+      const saved = localStorage.getItem(key);
+      if(saved) apply(saved);
+      else {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        apply(prefersDark ? 'dark' : 'light');
+      }
+
+      if(btn) btn.addEventListener('click', ()=> apply(html.classList.contains('dark') ? 'light' : 'dark'));
+    })();
+  </script>
+
+  <script>
+    // Register submit: robust for different API response formats
+    (function(){
+      const form = document.getElementById('registerForm');
+      const msg = document.getElementById('message');
+      const submitBtn = document.getElementById('submitBtn');
+
+      function showMessage(text, type){
+        msg.textContent = text;
+        msg.classList.remove('hidden');
+        msg.style.background = type === 'error' ? 'var(--bad)' : 'var(--ok)';
+        msg.style.border = '1px solid rgba(148,163,184,.20)';
+        msg.style.color = type === 'error' ? 'rgba(220,38,38,.95)' : 'rgba(16,185,129,.95)';
+        msg.style.backdropFilter = 'blur(16px)';
+        clearTimeout(showMessage._t);
+        showMessage._t = setTimeout(()=> msg.classList.add('hidden'), 5500);
+      }
+
+      async function safeJson(res){
+        try { return await res.json(); } catch { return null; }
+      }
+
+      function normalizeError(result){
+        if(!result) return null;
+        if(typeof result.error === 'string') return result.error;
+        if(typeof result.message === 'string') return result.message;
+        if(typeof result.msg === 'string') return result.msg;
+        if(Array.isArray(result.errors) && result.errors.length){
+          const e = result.errors[0];
+          if(typeof e === 'string') return e;
+          if(e && typeof e.message === 'string') return e.message;
         }
-        
-        // Check if user is already logged in
-        async function checkAuth() {
-            try {
-                const token = localStorage.getItem('token');
-                if (token) {
-                    const response = await fetch('/api/me', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.success) {
-                            // User is already logged in, redirect to messages
-                            window.location.href = '/messages.html';
-                        } else {
-                            // Invalid token, remove it
-                            localStorage.removeItem('token');
-                        }
-                    } else {
-                        // Invalid token, remove it
-                        localStorage.removeItem('token');
-                    }
-                }
-            } catch (error) {
-                // Not logged in or error, stay on register page
-                console.log('Not authenticated, staying on register page');
-            }
+        return null;
+      }
+
+      function extractToken(result){
+        if(!result) return null;
+        return result.token || result.accessToken || (result.data && (result.data.token || result.data.accessToken)) || null;
+      }
+
+      function isSuccess(res, result){
+        if(result && typeof result.success === 'boolean') return result.success;
+        // fallback: treat 2xx with any meaningful payload as success
+        if(res && res.ok){
+          if(extractToken(result)) return true;
+          if(result && (result.user || (result.data && result.data.user))) return true;
+          // some APIs return created user directly
+          if(result && (result._id || result.id)) return true;
         }
-        
-        document.addEventListener('DOMContentLoaded', checkAuth);
-    </script>
+        return false;
+      }
+
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const fd = new FormData(form);
+        const data = Object.fromEntries(fd.entries());
+
+        // basic validation
+        if((data.password || '').length < 6){
+          showMessage("Parol kamida 6 ta belgidan iborat bo‘lsin.", 'error');
+          return;
+        }
+        if(data.password !== data.confirmPassword){
+          showMessage("Parollar mos kelmadi!", 'error');
+          return;
+        }
+
+        // payload: keep original keys + add compatibility aliases
+        const payload = {
+          ...data,
+          name: data.fullName,            // some APIs use "name"
+          full_name: data.fullName,       // just in case
+          phoneNumber: data.phone,        // some APIs use phoneNumber
+        };
+        delete payload.confirmPassword;
+
+        const original = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Yuborilmoqda...';
+
+        try{
+          const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const result = await safeJson(res);
+
+          if(isSuccess(res, result)){
+            const token = extractToken(result);
+            if(token) localStorage.setItem('token', token);
+            showMessage("Ro‘yxatdan o‘tish muvaffaqiyatli! Yo‘naltirilmoqda...", 'success');
+            setTimeout(()=> window.location.href = '/messages.html', 900);
+            return;
+          }
+
+          const err = normalizeError(result) || `Ro‘yxatdan o‘tish muvaffaqiyatsiz (HTTP ${res.status}).`;
+          showMessage(err, 'error');
+          console.error('Register failed:', { status: res.status, result });
+
+        } catch (err){
+          showMessage("Tarmoq xatosi. Server ishlayaptimi? Qayta urinib ko‘ring.", 'error');
+          console.error('Register network/error:', err);
+        } finally {
+          submitBtn.innerHTML = original;
+          submitBtn.disabled = false;
+        }
+      });
+    })();
+  </script>
+
+  <script>
+    // Robot + password interactions
+    (function(){
+      const pw = document.getElementById('password');
+      const cpw = document.getElementById('confirmPassword');
+      const toggle = document.getElementById('togglePassword');
+      const toggleIcon = document.getElementById('toggleIcon');
+
+      const hint = document.getElementById('robotHint');
+      const eyeGroup = document.getElementById('eyes');
+      const eyeL = document.getElementById('eyeL');
+      const eyeR = document.getElementById('eyeR');
+      const blinkL = document.getElementById('blinkL');
+      const blinkR = document.getElementById('blinkR');
+      const mouthHappy = document.getElementById('mouthHappy');
+      const mouthSad = document.getElementById('mouthSad');
+      const pwMatchHint = document.getElementById('pwMatchHint');
+
+      function setClosed(closed){
+        blinkL.style.opacity = closed ? '1' : '0';
+        blinkR.style.opacity = closed ? '1' : '0';
+        eyeL.querySelector('circle').style.opacity = closed ? '0' : '1';
+        eyeR.querySelector('circle').style.opacity = closed ? '0' : '1';
+      }
+
+      function setPeek(peek){
+        if(peek){
+          eyeR.setAttribute('transform','translate(128 112) scale(1,0.45)');
+          eyeL.setAttribute('transform','translate(92 112) scale(1,1)');
+          setClosed(false);
+          if(hint) hint.textContent = "Parol: ko‘rsatilgan (robot tekshiryapti)";
+        } else {
+          eyeR.setAttribute('transform','translate(128 112) scale(1,1)');
+          if(hint) hint.textContent = "Parol: bekitilgan";
+        }
+      }
+
+      function setMood(ok){
+        mouthHappy.style.opacity = ok ? '1' : '0';
+        mouthSad.style.opacity = ok ? '0' : '1';
+      }
+
+      function matchCheck(){
+        const a = pw.value || '';
+        const b = cpw.value || '';
+        if(!a && !b){ setMood(true); pwMatchHint.classList.add('hidden'); return; }
+        if(b.length === 0){ setMood(true); pwMatchHint.classList.add('hidden'); return; }
+        const ok = a === b;
+        setMood(ok);
+        pwMatchHint.classList.remove('hidden');
+        pwMatchHint.textContent = ok ? "Parollar mos keldi." : "Parollar mos kelmadi.";
+        pwMatchHint.style.color = ok ? 'rgba(16,185,129,.95)' : 'rgba(220,38,38,.95)';
+      }
+
+      function lookAt(x, y){
+        const r = eyeGroup.getBoundingClientRect();
+        const cx = r.left + r.width/2;
+        const cy = r.top + r.height/2;
+        const dx = Math.max(-10, Math.min(10, (x - cx)/20));
+        const dy = Math.max(-6, Math.min(6, (y - cy)/25));
+        eyeGroup.setAttribute('transform', 'translate(' + dx + ',' + dy + ')');
+      }
+
+      document.addEventListener('mousemove', (e)=>{
+        if(pw.type==='text' || document.activeElement===pw || document.activeElement===cpw) lookAt(e.clientX, e.clientY);
+      });
+      document.addEventListener('mouseleave', ()=> eyeGroup.setAttribute('transform','translate(0,0)'));
+
+      toggle.addEventListener('click', ()=>{
+        pw.type = (pw.type === 'password') ? 'text' : 'password';
+        toggleIcon.className = (pw.type === 'password') ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+        if(pw.type === 'text'){ setPeek(true); }
+        else { setPeek(false); setClosed(true); setTimeout(()=> setClosed(false), 240); }
+        pw.focus();
+      });
+
+      pw.addEventListener('input', matchCheck);
+      cpw.addEventListener('input', matchCheck);
+
+      // initial
+      setMood(true);
+
+      // occasional blink
+      setInterval(()=>{
+        if(document.hidden) return;
+        if(pw.type==='text') return;
+        setClosed(true);
+        setTimeout(()=> setClosed(false), 160);
+      }, 4400);
+    })();
+  </script>
+
+  <script>
+    // Check if already logged in
+    (function(){
+      async function checkAuth(){
+        try{
+          const token = localStorage.getItem('token');
+          if(!token) return;
+          const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${token}` } });
+          if(!res.ok) return localStorage.removeItem('token');
+          const data = await res.json().catch(()=>null);
+          if(data && data.success) window.location.href = '/messages.html';
+          else localStorage.removeItem('token');
+        }catch(_){}
+      }
+      document.addEventListener('DOMContentLoaded', checkAuth);
+    })();
+  </script>
 </body>
 </html>

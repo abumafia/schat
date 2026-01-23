@@ -91,6 +91,7 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, default: '' },
   password: { type: String, required: true },
   avatar: { type: String, default: 'https://res.cloudinary.com/demo/image/upload/v1692290000/default-avatar.png' },
+  coverBanner: { type: String, default: '' },
   isOnline: { type: Boolean, default: false },
   lastSeen: { type: Date, default: Date.now },
   lastUsernameChange: { type: Date, default: null },
@@ -101,6 +102,7 @@ const UserSchema = new mongoose.Schema({
     default: 'offline' 
   },
   lastActive: { type: Date, default: Date.now },
+  verified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', UserSchema);
@@ -180,6 +182,7 @@ const Channel = mongoose.model('Channel', ChannelSchema);
 
 // Channel Post Model
 const ChannelPostSchema = new mongoose.Schema({
+  title: { type: String, default: '' },
   channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
   content: { type: String, required: true },
   mediaUrl: { type: String, default: '' },
@@ -190,6 +193,16 @@ const ChannelPostSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 const ChannelPost = mongoose.model('ChannelPost', ChannelPostSchema);
+
+// Channel Post Comment Model
+const ChannelPostCommentSchema = new mongoose.Schema({
+  postId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChannelPost', required: true, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+const ChannelPostComment = mongoose.model('ChannelPostComment', ChannelPostCommentSchema);
+
 
 // Stats Model
 const StatsSchema = new mongoose.Schema({
@@ -319,6 +332,13 @@ io.on('connection', (socket) => {
       
       console.log('✅ User authenticated:', userId);
       
+      // Join university room (for services/signals broadcasts)
+      const u = await User.findById(userId).select('university');
+      if (u && u.university) {
+        socket.university = u.university;
+        socket.join('uni:' + u.university);
+      }
+
       // Join user's personal room
       socket.join(userId);
       socket.join(`user_${userId}`);
@@ -343,6 +363,29 @@ io.on('connection', (socket) => {
   });
   
   // Join chat room
+
+  // Join/leave channel room (for real-time channel posts/updates)
+  socket.on('joinChannel', (channelId) => {
+    try {
+      if (!channelId) return;
+      socket.join(`channel_${channelId}`);
+      socket.emit('channelJoined', { channelId });
+      console.log(`📡 Socket ${socket.id} joined channel room channel_${channelId}`);
+    } catch (e) {
+      console.error('joinChannel error:', e);
+    }
+  });
+
+  socket.on('leaveChannel', (channelId) => {
+    try {
+      if (!channelId) return;
+      socket.leave(`channel_${channelId}`);
+      socket.emit('channelLeft', { channelId });
+    } catch (e) {
+      console.error('leaveChannel error:', e);
+    }
+  });
+
   socket.on('joinChat', async ({ userId, targetUserId }) => {
     try {
       const roomName = getChatRoomName(userId, targetUserId);
@@ -759,6 +802,135 @@ io.on('connection', (socket) => {
     console.error('❌ Socket error:', error);
   });
 });
+
+
+// ==================== SERVICES MARKETPLACE MODELS ====================
+
+// Service Listing (student offers)
+const ServiceSchema = new mongoose.Schema({
+  sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  university: { type: String, required: true, index: true },
+  title: { type: String, required: true, trim: true, maxlength: 120 },
+  description: { type: String, required: true, trim: true, maxlength: 5000 },
+  category: { type: String, required: true, index: true },
+  tags: [{ type: String, index: true }],
+  priceType: { type: String, enum: ['fixed', 'hour'], default: 'fixed' },
+  price: { type: Number, required: true, min: 0 },
+  slaHours: { type: Number, default: 24, min: 1 },
+  mediaUrl: { type: String, default: '' },
+  mediaType: { type: String, enum: ['image', 'video', 'audio', 'document', 'file', ''], default: '' },
+  status: { type: String, enum: ['active', 'paused'], default: 'active', index: true },
+  createdAt: { type: Date, default: Date.now }
+});
+ServiceSchema.index({ university: 1, category: 1, status: 1, createdAt: -1 });
+ServiceSchema.index({ title: 'text', description: 'text', tags: 'text' });
+
+const Service = mongoose.model('Service', ServiceSchema);
+
+// Service Requests / Orders (buyer requests seller)
+const ServiceOrderSchema = new mongoose.Schema({
+  serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Service', required: true, index: true },
+  buyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  university: { type: String, required: true, index: true },
+  note: { type: String, default: '', maxlength: 2000 },
+  agreedPrice: { type: Number, required: true, min: 0 },
+  status: { 
+    type: String, 
+    enum: ['created', 'in_progress', 'submitted', 'accepted', 'disputed', 'cancelled'],
+    default: 'created',
+    index: true
+  },
+  dueAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+ServiceOrderSchema.index({ university: 1, status: 1, createdAt: -1 });
+
+const ServiceOrder = mongoose.model('ServiceOrder', ServiceOrderSchema);
+
+// Deliverables for order
+const ServiceDeliverableSchema = new mongoose.Schema({
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceOrder', required: true, index: true },
+  uploaderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  mediaUrl: { type: String, required: true },
+  mediaType: { type: String, default: 'file' },
+  note: { type: String, default: '', maxlength: 2000 },
+  createdAt: { type: Date, default: Date.now }
+});
+const ServiceDeliverable = mongoose.model('ServiceDeliverable', ServiceDeliverableSchema);
+
+// Favorites
+const ServiceFavoriteSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Service', required: true, index: true },
+  createdAt: { type: Date, default: Date.now }
+});
+ServiceFavoriteSchema.index({ userId: 1, serviceId: 1 }, { unique: true });
+const ServiceFavorite = mongoose.model('ServiceFavorite', ServiceFavoriteSchema);
+
+// Reviews (only after accepted)
+const ServiceReviewSchema = new mongoose.Schema({
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceOrder', required: true, unique: true },
+  reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  revieweeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  rating: { type: Number, min: 1, max: 5, required: true },
+  text: { type: String, default: '', maxlength: 3000 },
+  createdAt: { type: Date, default: Date.now }
+});
+const ServiceReview = mongoose.model('ServiceReview', ServiceReviewSchema);
+
+// ==================== ANONYMOUS CAMPUS SIGNALS MODELS ====================
+
+const SignalSchema = new mongoose.Schema({
+  university: { type: String, required: true, index: true },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true }, // hidden in API responses
+  title: { type: String, required: true, trim: true, maxlength: 140 },
+  body: { type: String, required: true, trim: true, maxlength: 8000 },
+  tags: [{ type: String, index: true }],
+  urgency: { type: Number, min: 1, max: 5, default: 3 },
+  status: { type: String, enum: ['open', 'acknowledged', 'in_progress', 'resolved', 'rejected'], default: 'open', index: true },
+  visibility: { type: String, enum: ['public', 'pending', 'hidden'], default: 'pending', index: true },
+  impactScore: { type: Number, default: 0, index: true },
+  createdAt: { type: Date, default: Date.now }
+});
+SignalSchema.index({ university: 1, status: 1, visibility: 1, impactScore: -1, createdAt: -1 });
+SignalSchema.index({ title: 'text', body: 'text', tags: 'text' });
+const Signal = mongoose.model('Signal', SignalSchema);
+
+const SignalVoteSchema = new mongoose.Schema({
+  signalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Signal', required: true, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  vote: { type: Number, enum: [1, -1], required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+SignalVoteSchema.index({ signalId: 1, userId: 1 }, { unique: true });
+const SignalVote = mongoose.model('SignalVote', SignalVoteSchema);
+
+const SignalCommentSchema = new mongoose.Schema({
+  signalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Signal', required: true, index: true },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // hidden in response
+  body: { type: String, required: true, trim: true, maxlength: 4000 },
+  createdAt: { type: Date, default: Date.now }
+});
+const SignalComment = mongoose.model('SignalComment', SignalCommentSchema);
+
+const SignalReportSchema = new mongoose.Schema({
+  signalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Signal', required: true, index: true },
+  reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  reason: { type: String, required: true, maxlength: 500 },
+  createdAt: { type: Date, default: Date.now }
+});
+const SignalReport = mongoose.model('SignalReport', SignalReportSchema);
+
+const SignalModerationSchema = new mongoose.Schema({
+  signalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Signal', required: true, index: true },
+  moderatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  action: { type: String, required: true },
+  note: { type: String, default: '', maxlength: 1000 },
+  createdAt: { type: Date, default: Date.now }
+});
+const SignalModeration = mongoose.model('SignalModeration', SignalModerationSchema);
+
 
 // ==================== ROUTES ====================
 
@@ -1619,8 +1791,147 @@ app.post('/api/channels', authenticateToken, async (req, res) => {
   }
 });
 
+// Update Channel (metadata)
+app.put('/api/channels/:channelId([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { name, username, description, category, university, isPublic } = req.body;
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+    const isCreator = channel.creatorId.equals(req.userId);
+    const isModerator = channel.moderators.some(mod => mod.equals(req.userId));
+    if (!isCreator && !isModerator) {
+      return res.status(403).json({ error: 'Only channel admins can edit channel' });
+    }
+
+    // If username changed, ensure uniqueness
+    if (username && username !== channel.username) {
+      const exists = await Channel.findOne({ username });
+      if (exists) return res.status(400).json({ error: 'Channel username already exists' });
+      channel.username = username;
+    }
+
+    if (typeof name === 'string' && name.trim()) channel.name = name.trim();
+    if (typeof description === 'string') channel.description = description;
+    if (typeof category === 'string' && category.trim()) channel.category = category.trim();
+    if (typeof university === 'string') channel.university = university.trim();
+    if (typeof isPublic === 'boolean') channel.isPublic = isPublic;
+
+    await channel.save();
+
+    io.to(`channel_${channelId}`).emit('channelUpdated', {
+      channelId,
+      name: channel.name,
+      username: channel.username,
+      description: channel.description,
+      category: channel.category,
+      university: channel.university,
+      isPublic: channel.isPublic,
+      avatar: channel.avatar,
+      coverBanner: channel.coverBanner || ''
+    });
+
+    res.json({ success: true, channel });
+  } catch (error) {
+    console.error('Update channel error:', error);
+    res.status(500).json({ error: 'Failed to update channel' });
+  }
+});
+
+// Upload Channel Avatar
+app.post('/api/channels/:channelId([0-9a-fA-F]{24})/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+    const isCreator = channel.creatorId.equals(req.userId);
+    const isModerator = channel.moderators.some(mod => mod.equals(req.userId));
+    if (!isCreator && !isModerator) {
+      return res.status(403).json({ error: 'Only channel admins can change avatar' });
+    }
+
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const result = await cloudinary.uploader.upload(req.file.path, { folder: 'channels/avatars' });
+    try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+
+    channel.avatar = result.secure_url;
+    await channel.save();
+
+    io.to(`channel_${channelId}`).emit('channelUpdated', { channelId, avatar: channel.avatar });
+
+    res.json({ success: true, avatar: channel.avatar });
+  } catch (error) {
+    console.error('Upload channel avatar error:', error);
+    res.status(500).json({ error: 'Failed to upload avatar' });
+  }
+});
+
+// Upload Channel Cover Banner
+app.post('/api/channels/:channelId([0-9a-fA-F]{24})/banner', authenticateToken, upload.single('banner'), async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+    const isCreator = channel.creatorId.equals(req.userId);
+    const isModerator = channel.moderators.some(mod => mod.equals(req.userId));
+    if (!isCreator && !isModerator) {
+      return res.status(403).json({ error: 'Only channel admins can change banner' });
+    }
+
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const result = await cloudinary.uploader.upload(req.file.path, { folder: 'channels/banners' });
+    try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+
+    channel.coverBanner = result.secure_url;
+    await channel.save();
+
+    io.to(`channel_${channelId}`).emit('channelUpdated', { channelId, coverBanner: channel.coverBanner });
+
+    res.json({ success: true, coverBanner: channel.coverBanner });
+  } catch (error) {
+    console.error('Upload channel banner error:', error);
+    res.status(500).json({ error: 'Failed to upload banner' });
+  }
+});
+
+// Upload Channel Post Media (multipart)
+app.post('/api/channels/:channelId([0-9a-fA-F]{24})/posts/upload', authenticateToken, upload.single('media'), async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+    const isCreator = channel.creatorId.equals(req.userId);
+    const isModerator = channel.moderators.some(mod => mod.equals(req.userId));
+    if (!isCreator && !isModerator) {
+      return res.status(403).json({ error: 'Only channel admins can upload media' });
+    }
+
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const result = await cloudinary.uploader.upload(req.file.path, { folder: 'channels/posts', resource_type: 'auto' });
+    const mediaType = getMediaType(req.file.mimetype);
+    try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+
+    res.json({ success: true, url: result.secure_url, mediaType });
+  } catch (error) {
+    console.error('Upload post media error:', error);
+    res.status(500).json({ error: 'Failed to upload post media' });
+  }
+});
+
+
 // Get Channel Posts
-app.get('/api/channels/:channelId/posts', authenticateToken, async (req, res) => {
+app.get('/api/channels/:channelId([0-9a-fA-F]{24})/posts', authenticateToken, async (req, res) => {
   try {
     const { channelId } = req.params;
     const posts = await ChannelPost.find({ channelId })
@@ -1635,7 +1946,7 @@ app.get('/api/channels/:channelId/posts', authenticateToken, async (req, res) =>
 });
 
 // Create Channel Post
-app.post('/api/channels/:channelId/posts', authenticateToken, async (req, res) => {
+app.post('/api/channels/:channelId([0-9a-fA-F]{24})/posts', authenticateToken, async (req, res) => {
   try {
     const { channelId } = req.params;
     const { content, mediaUrl, mediaType, type } = req.body;
@@ -1786,7 +2097,7 @@ app.post('/api/groups/:groupId/leave', authenticateToken, async (req, res) => {
 });
 
 // Subscribe to channel
-app.post('/api/channels/:channelId/subscribe', authenticateToken, async (req, res) => {
+app.post('/api/channels/:channelId([0-9a-fA-F]{24})/subscribe', authenticateToken, async (req, res) => {
   try {
     const { channelId } = req.params;
     
@@ -1816,7 +2127,7 @@ app.post('/api/channels/:channelId/subscribe', authenticateToken, async (req, re
 });
 
 // Unsubscribe from channel
-app.post('/api/channels/:channelId/unsubscribe', authenticateToken, async (req, res) => {
+app.post('/api/channels/:channelId([0-9a-fA-F]{24})/unsubscribe', authenticateToken, async (req, res) => {
   try {
     const { channelId } = req.params;
     
@@ -2157,7 +2468,7 @@ app.get('/api/profile/activity', authenticateToken, async (req, res) => {
 });
 
 // Get channel by ID
-app.get('/api/channels/:channelId', authenticateToken, async (req, res) => {
+app.get('/api/channels/:channelId([0-9a-fA-F]{24})', authenticateToken, async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.channelId)
       .populate('creatorId', 'username nickname avatar')
@@ -2196,7 +2507,7 @@ app.get('/api/channels/:channelId', authenticateToken, async (req, res) => {
 });
 
 // Get paginated channel posts
-app.get('/api/channels/:channelId/posts', authenticateToken, async (req, res) => {
+app.get('/api/channels/:channelId([0-9a-fA-F]{24})/posts', authenticateToken, async (req, res) => {
   try {
     const { channelId } = req.params;
     const page = parseInt(req.query.page) || 1;
@@ -2224,7 +2535,7 @@ app.get('/api/channels/:channelId/posts', authenticateToken, async (req, res) =>
 });
 
 // Get channel subscribers
-app.get('/api/channels/:channelId/subscribers', authenticateToken, async (req, res) => {
+app.get('/api/channels/:channelId([0-9a-fA-F]{24})/subscribers', authenticateToken, async (req, res) => {
   try {
     const { channelId } = req.params;
     
@@ -2513,15 +2824,100 @@ app.post('/api/posts/:postId/view', authenticateToken, async (req, res) => {
 // Get post comments
 app.get('/api/posts/:postId/comments', authenticateToken, async (req, res) => {
   try {
+    const { postId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ error: 'Invalid postId' });
+    }
+
+    const comments = await ChannelPostComment.find({ postId })
+      .sort({ createdAt: 1 })
+      .populate('userId', 'username nickname avatar');
+
     res.json({
       success: true,
-      comments: []
+      comments: comments.map(c => ({
+        _id: c._id,
+        content: c.content,
+        createdAt: c.createdAt,
+        user: c.userId ? {
+          _id: c.userId._id,
+          username: c.userId.username,
+          nickname: c.userId.nickname,
+          avatar: c.userId.avatar
+        } : null
+      }))
     });
   } catch (error) {
     console.error('Get post comments error:', error);
     res.status(500).json({ error: 'Failed to get comments' });
   }
 });
+
+// Add comment to post
+app.post('/api/posts/:postId/comments', authenticateToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { content } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ error: 'Invalid postId' });
+    }
+    if (!content || !String(content).trim()) {
+      return res.status(400).json({ error: 'Comment content required' });
+    }
+
+    const post = await ChannelPost.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const comment = await ChannelPostComment.create({
+      postId,
+      userId: req.userId,
+      content: String(content).trim()
+    });
+
+    const populated = await comment.populate('userId', 'username nickname avatar');
+
+    // Notify viewers in channel room
+    try {
+      io.to('channel_' + post.channelId.toString()).emit('channelPostComment:new', {
+        postId: postId,
+        comment: {
+          _id: comment._id,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          user: populated.userId ? {
+            _id: populated.userId._id,
+            username: populated.userId.username,
+            nickname: populated.userId.nickname,
+            avatar: populated.userId.avatar
+          } : null
+        }
+      });
+    } catch (e) {}
+
+    res.json({
+      success: true,
+      comment: {
+        _id: comment._id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        user: populated.userId ? {
+          _id: populated.userId._id,
+          username: populated.userId.username,
+          nickname: populated.userId.nickname,
+          avatar: populated.userId.avatar
+        } : null
+      }
+    });
+  } catch (error) {
+    console.error('Add post comment error:', error);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
 
 // Cloudinary upload endpoint
 app.post('/api/upload', authenticateToken, async (req, res) => {
@@ -2561,6 +2957,86 @@ app.post('/api/user/status', authenticateToken, async (req, res) => {
   }
 });
 
+
+// Public Post Permalink (Open Graph preview)
+app.get('/post/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    const post = await ChannelPost.findById(postId).populate('channelId', 'name username avatar coverBanner isPublic');
+    if (!post) return res.status(404).send('Post not found');
+
+    const channel = post.channelId;
+    if (channel && channel.isPublic === false) {
+      return res.status(403).send('This channel is private');
+    }
+
+    const origin = (process.env.PUBLIC_ORIGIN || (req.protocol + '://' + req.get('host')));
+    const url = origin + '/post/' + postId;
+    const title = (post.title && post.title.trim()) ? post.title.trim() : (channel?.name ? `${channel.name} post` : 'Channel post');
+    const descRaw = (post.content || '').replace(/\s+/g,' ').trim();
+    const description = descRaw.length > 180 ? descRaw.slice(0, 177) + '...' : descRaw || 'View post';
+    const image = post.mediaType === 'image' && post.mediaUrl ? post.mediaUrl : (channel?.coverBanner || channel?.avatar || '');
+
+    // Basic HTML with OG tags
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${escapeHtml(title)}</title>
+<link rel="canonical" href="${escapeAttr(url)}"/>
+<meta property="og:type" content="article"/>
+<meta property="og:title" content="${escapeAttr(title)}"/>
+<meta property="og:description" content="${escapeAttr(description)}"/>
+<meta property="og:url" content="${escapeAttr(url)}"/>
+${image ? `<meta property="og:image" content="${escapeAttr(image)}"/>` : ``}
+<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}"/>
+<meta name="twitter:title" content="${escapeAttr(title)}"/>
+<meta name="twitter:description" content="${escapeAttr(description)}"/>
+${image ? `<meta name="twitter:image" content="${escapeAttr(image)}"/>` : ``}
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b1220;color:#e5e7eb;margin:0;padding:24px;}
+  .wrap{max-width:860px;margin:0 auto;}
+  .card{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:18px;}
+  .meta{color:#9ca3af;font-size:13px;margin-bottom:10px}
+  .btn{display:inline-block;margin-top:14px;background:#2563eb;color:white;padding:10px 14px;border-radius:10px;text-decoration:none}
+  img{max-width:100%;border-radius:12px;margin-top:14px}
+  .title{font-size:20px;font-weight:700;margin:0 0 10px}
+  .content{white-space:pre-wrap;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="meta">${escapeHtml(channel?.name || 'Channel')} • ${new Date(post.createdAt).toLocaleString()}</div>
+    <h1 class="title">${escapeHtml(title)}</h1>
+    <div class="content">${escapeHtml(post.content || '')}</div>
+    ${post.mediaUrl ? (post.mediaType === 'image' ? `<img src="${escapeAttr(post.mediaUrl)}" alt="post media"/>` :
+      `<div class="meta" style="margin-top:14px">Media: <a href="${escapeAttr(post.mediaUrl)}" style="color:#93c5fd">open</a></div>`) : ``}
+    <a class="btn" href="/channel.html?channelId=${channel?._id || ''}&postId=${postId}">Open in app</a>
+  </div>
+</div>
+</body>
+</html>`);
+  } catch (error) {
+    console.error('Public permalink error:', error);
+    res.status(500).send('Server error');
+  }
+});
+
+// Escape helpers for permalink HTML
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+function escapeAttr(str) { return escapeHtml(str); }
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -2591,6 +3067,631 @@ app.get('/api/server/stats', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to get server stats' });
   }
 });
+
+
+// ==================== SERVICES MARKETPLACE ROUTES ====================
+
+// Create service listing (with optional media upload)
+app.post('/api/services', authenticateToken, upload.single('media'), async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('university username fullName avatar verified');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { title, description, category, tags, priceType, price, slaHours, status } = req.body;
+
+    let mediaUrl = '';
+    let mediaType = '';
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, { folder: 'services' });
+      mediaUrl = result.secure_url;
+      mediaType = getMediaType(req.file.mimetype);
+      // cleanup local file
+      try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+    }
+
+    const tagList = (tags || '').split(',').map(t => t.trim()).filter(Boolean);
+
+    const service = await Service.create({
+      sellerId: user._id,
+      university: user.university,
+      title,
+      description,
+      category,
+      tags: tagList,
+      priceType: priceType === 'hour' ? 'hour' : 'fixed',
+      price: Number(price || 0),
+      slaHours: Number(slaHours || 24),
+      mediaUrl,
+      mediaType,
+      status: status === 'paused' ? 'paused' : 'active'
+    });
+
+    // Notify university room
+    if (io) {
+      io.to('uni:' + user.university).emit('service:new', {
+        id: service._id,
+        title: service.title,
+        category: service.category,
+        price: service.price,
+        priceType: service.priceType
+      });
+    }
+
+    res.json({ success: true, service });
+  } catch (error) {
+    console.error('❌ Create service error:', error);
+    res.status(500).json({ error: 'Failed to create service' });
+  }
+});
+
+// List services
+app.get('/api/services', async (req, res) => {
+  try {
+    const { university, category, q, tag, status, sort, page, limit } = req.query;
+    const query = {};
+    if (university) query.university = university;
+    if (category) query.category = category;
+    query.status = status || 'active';
+    if (tag) query.tags = tag;
+
+    let cursor = Service.find(query);
+
+    if (q && q.trim()) {
+      cursor = Service.find({ ...query, $text: { $search: q.trim() } }, { score: { $meta: 'textScore' } })
+        .sort({ score: { $meta: 'textScore' }, createdAt: -1 });
+    } else {
+      const sortKey = (sort || 'new').toLowerCase();
+      if (sortKey === 'price_asc') cursor = cursor.sort({ price: 1 });
+      else if (sortKey === 'price_desc') cursor = cursor.sort({ price: -1 });
+      else cursor = cursor.sort({ createdAt: -1 });
+    }
+
+    const p = Math.max(1, parseInt(page || '1', 10));
+    const l = Math.min(50, Math.max(5, parseInt(limit || '12', 10)));
+
+    const [items, total] = await Promise.all([
+      cursor.skip((p - 1) * l).limit(l).lean(),
+      Service.countDocuments(query)
+    ]);
+
+    res.json({ success: true, services: items, total, page: p, pages: Math.ceil(total / l) });
+  } catch (error) {
+    console.error('❌ List services error:', error);
+    res.status(500).json({ error: 'Failed to list services' });
+  }
+});
+
+// Service detail (with seller + rating)
+app.get('/api/services/:id', async (req, res) => {
+  try {
+    const service = await Service.findById(req.params.id).lean();
+    if (!service) return res.status(404).json({ error: 'Service not found' });
+
+    const seller = await User.findById(service.sellerId).select('fullName username avatar university verified').lean();
+
+    const ratingAgg = await ServiceReview.aggregate([
+      { $lookup: { from: 'serviceorders', localField: 'orderId', foreignField: '_id', as: 'order' } },
+      { $unwind: '$order' },
+      { $match: { 'order.serviceId': service._id } },
+      { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+    ]);
+
+    const rating = ratingAgg[0] ? { average: Number(ratingAgg[0].avg.toFixed(2)), count: ratingAgg[0].count } : { average: 0, count: 0 };
+
+    res.json({ success: true, service, seller, rating });
+  } catch (error) {
+    console.error('❌ Service detail error:', error);
+    res.status(500).json({ error: 'Failed to get service' });
+  }
+});
+
+// Update service (seller only)
+app.put('/api/services/:id', authenticateToken, upload.single('media'), async (req, res) => {
+  try {
+    const service = await Service.findById(req.params.id);
+    if (!service) return res.status(404).json({ error: 'Service not found' });
+    if (service.sellerId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const { title, description, category, tags, priceType, price, slaHours, status } = req.body;
+
+    if (title) service.title = title;
+    if (description) service.description = description;
+    if (category) service.category = category;
+    if (typeof tags !== 'undefined') service.tags = (tags || '').split(',').map(t => t.trim()).filter(Boolean);
+    if (priceType) service.priceType = priceType === 'hour' ? 'hour' : 'fixed';
+    if (typeof price !== 'undefined') service.price = Number(price);
+    if (typeof slaHours !== 'undefined') service.slaHours = Number(slaHours);
+    if (status) service.status = status === 'paused' ? 'paused' : 'active';
+
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, { folder: 'services' });
+      service.mediaUrl = result.secure_url;
+      service.mediaType = getMediaType(req.file.mimetype);
+      try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+    }
+
+    await service.save();
+    res.json({ success: true, service });
+  } catch (error) {
+    console.error('❌ Update service error:', error);
+    res.status(500).json({ error: 'Failed to update service' });
+  }
+});
+
+// Delete service (seller only)
+app.delete('/api/services/:id', authenticateToken, async (req, res) => {
+  try {
+    const service = await Service.findById(req.params.id);
+    if (!service) return res.status(404).json({ error: 'Service not found' });
+    if (service.sellerId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    await ServiceFavorite.deleteMany({ serviceId: service._id });
+    await Service.deleteOne({ _id: service._id });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Delete service error:', error);
+    res.status(500).json({ error: 'Failed to delete service' });
+  }
+});
+
+// Favorite toggle
+app.post('/api/services/:id/favorite', authenticateToken, async (req, res) => {
+  try {
+    const serviceId = req.params.id;
+    const existing = await ServiceFavorite.findOne({ userId: req.userId, serviceId });
+    if (existing) {
+      await ServiceFavorite.deleteOne({ _id: existing._id });
+      return res.json({ success: true, favorited: false });
+    }
+    await ServiceFavorite.create({ userId: req.userId, serviceId });
+    res.json({ success: true, favorited: true });
+  } catch (error) {
+    console.error('❌ Favorite error:', error);
+    res.status(500).json({ error: 'Failed to favorite' });
+  }
+});
+
+// Create order / request service
+app.post('/api/service-orders', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('university');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { serviceId, note } = req.body;
+    const service = await Service.findById(serviceId);
+    if (!service || service.status !== 'active') return res.status(404).json({ error: 'Service not available' });
+    if (service.university !== user.university) return res.status(403).json({ error: 'University mismatch' });
+    if (service.sellerId.toString() === req.userId) return res.status(400).json({ error: 'Cannot order your own service' });
+
+    const dueAt = new Date(Date.now() + (service.slaHours || 24) * 60 * 60 * 1000);
+
+    const order = await ServiceOrder.create({
+      serviceId: service._id,
+      buyerId: req.userId,
+      sellerId: service.sellerId,
+      university: user.university,
+      note: note || '',
+      agreedPrice: service.price,
+      status: 'created',
+      dueAt
+    });
+
+    if (io) {
+      io.to(service.sellerId.toString()).emit('service:order:new', { orderId: order._id });
+    }
+
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('❌ Create order error:', error);
+    res.status(500).json({ error: 'Failed to create order' });
+  }
+});
+
+// List my orders (buyer/seller)
+app.get('/api/service-orders', authenticateToken, async (req, res) => {
+  try {
+    const { role, status } = req.query; // role=buyer|seller
+    const query = {};
+    if (role === 'seller') query.sellerId = req.userId;
+    else query.buyerId = req.userId;
+    if (status) query.status = status;
+
+    const orders = await ServiceOrder.find(query).sort({ createdAt: -1 }).limit(200).lean();
+    res.json({ success: true, orders });
+  } catch (error) {
+    console.error('❌ List orders error:', error);
+    res.status(500).json({ error: 'Failed to list orders' });
+  }
+});
+
+// Order detail
+app.get('/api/service-orders/:id', authenticateToken, async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (![order.buyerId.toString(), order.sellerId.toString()].includes(req.userId)) return res.status(403).json({ error: 'Forbidden' });
+
+    const service = await Service.findById(order.serviceId).lean();
+    const deliverables = await ServiceDeliverable.find({ orderId: order._id }).sort({ createdAt: -1 }).lean();
+
+    res.json({ success: true, order, service, deliverables });
+  } catch (error) {
+    console.error('❌ Order detail error:', error);
+    res.status(500).json({ error: 'Failed to get order' });
+  }
+});
+
+// Seller sets in_progress
+app.post('/api/service-orders/:id/start', authenticateToken, async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.sellerId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    order.status = 'in_progress';
+    await order.save();
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('❌ Order start error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Upload deliverable (seller or buyer)
+app.post('/api/service-orders/:id/deliverable', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (![order.buyerId.toString(), order.sellerId.toString()].includes(req.userId)) return res.status(403).json({ error: 'Forbidden' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const result = await cloudinary.uploader.upload(req.file.path, { folder: 'deliverables' });
+    const d = await ServiceDeliverable.create({
+      orderId: order._id,
+      uploaderId: req.userId,
+      mediaUrl: result.secure_url,
+      mediaType: getMediaType(req.file.mimetype),
+      note: (req.body.note || '')
+    });
+    try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+
+    // If seller uploaded deliverable, set submitted
+    if (order.sellerId.toString() === req.userId) {
+      order.status = 'submitted';
+      await order.save();
+    }
+
+    res.json({ success: true, deliverable: d, order });
+  } catch (error) {
+    console.error('❌ Deliverable error:', error);
+    res.status(500).json({ error: 'Failed to upload deliverable' });
+  }
+});
+
+// Buyer accepts
+app.post('/api/service-orders/:id/accept', authenticateToken, async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.buyerId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    order.status = 'accepted';
+    await order.save();
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('❌ Accept error:', error);
+    res.status(500).json({ error: 'Failed to accept' });
+  }
+});
+
+// Dispute / Cancel
+app.post('/api/service-orders/:id/dispute', authenticateToken, async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (![order.buyerId.toString(), order.sellerId.toString()].includes(req.userId)) return res.status(403).json({ error: 'Forbidden' });
+
+    order.status = 'disputed';
+    await order.save();
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('❌ Dispute error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+app.post('/api/service-orders/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.buyerId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    order.status = 'cancelled';
+    await order.save();
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('❌ Cancel error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Review (buyer only, accepted orders)
+app.post('/api/service-orders/:id/review', authenticateToken, async (req, res) => {
+  try {
+    const order = await ServiceOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.buyerId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+    if (order.status !== 'accepted') return res.status(400).json({ error: 'Order not accepted yet' });
+
+    const { rating, text } = req.body;
+    const review = await ServiceReview.create({
+      orderId: order._id,
+      reviewerId: order.buyerId,
+      revieweeId: order.sellerId,
+      rating: Number(rating),
+      text: text || ''
+    });
+
+    res.json({ success: true, review });
+  } catch (error) {
+    console.error('❌ Review error:', error);
+    res.status(500).json({ error: 'Failed to review' });
+  }
+});
+
+// ==================== ANONYMOUS CAMPUS SIGNALS ROUTES ====================
+
+function sanitizeSignalPublic(signalDoc) {
+  const s = { ...signalDoc };
+  delete s.authorId;
+  return s;
+}
+
+// Simple toxicity wordlist (extend later)
+function isPotentiallyToxic(text) {
+  const t = (text || '').toLowerCase();
+  const banned = ['kill', 'suicide', 'terror', 'bomb', 'rape'];
+  return banned.some(w => t.includes(w));
+}
+
+// Rate limit: verified 3/day else 1/day
+async function signalRateLimit(req, res, next) {
+  try {
+    const user = await User.findById(req.userId).select('verified');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const limit = user.verified ? 3 : 1;
+
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const count = await Signal.countDocuments({ authorId: req.userId, createdAt: { $gte: since } });
+    if (count >= limit) return res.status(429).json({ error: 'Daily signal limit reached' });
+    next();
+  } catch (e) {
+    console.error('❌ Signal rate limit error:', e);
+    res.status(500).json({ error: 'Rate limit check failed' });
+  }
+}
+
+// Admin gate for moderation
+async function requireAdmin(req, res, next) {
+  try {
+    const user = await User.findById(req.userId).select('username');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const admins = (process.env.ADMIN_USERNAMES || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!admins.length) return res.status(403).json({ error: 'Admin list not configured' });
+    if (!admins.includes(user.username)) return res.status(403).json({ error: 'Forbidden' });
+    next();
+  } catch (e) {
+    console.error('❌ requireAdmin error:', e);
+    res.status(500).json({ error: 'Auth failed' });
+  }
+}
+
+// Create signal (anonymous to public)
+app.post('/api/signals', authenticateToken, signalRateLimit, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('university');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { title, body, tags, urgency } = req.body;
+    const tagList = Array.isArray(tags) ? tags : (tags || '').split(',').map(t => t.trim()).filter(Boolean);
+
+    const pending = isPotentiallyToxic(title + ' ' + body);
+
+    const signal = await Signal.create({
+      university: user.university,
+      authorId: req.userId,
+      title,
+      body,
+      tags: tagList,
+      urgency: Math.max(1, Math.min(5, Number(urgency || 3))),
+      visibility: pending ? 'pending' : 'public'
+    });
+
+    // Realtime push only if public
+    if (io && signal.visibility === 'public') {
+      io.to('uni:' + user.university).emit('signal:new', sanitizeSignalPublic(signal.toObject()));
+    }
+
+    res.json({ success: true, signal: sanitizeSignalPublic(signal.toObject()) });
+  } catch (error) {
+    console.error('❌ Create signal error:', error);
+    res.status(500).json({ error: 'Failed to create signal' });
+  }
+});
+
+// List signals
+app.get('/api/signals', async (req, res) => {
+  try {
+    const { university, tag, status, sort, q, page, limit } = req.query;
+    const query = { visibility: 'public' };
+    if (university) query.university = university;
+    if (tag) query.tags = tag;
+    if (status) query.status = status;
+
+    let cursor = Signal.find(query);
+
+    if (q && q.trim()) {
+      cursor = Signal.find({ ...query, $text: { $search: q.trim() } }, { score: { $meta: 'textScore' } })
+        .sort({ score: { $meta: 'textScore' }, createdAt: -1 });
+    } else {
+      const s = (sort || 'hot').toLowerCase();
+      if (s === 'new') cursor = cursor.sort({ createdAt: -1 });
+      else cursor = cursor.sort({ impactScore: -1, createdAt: -1 });
+    }
+
+    const p = Math.max(1, parseInt(page || '1', 10));
+    const l = Math.min(50, Math.max(10, parseInt(limit || '20', 10)));
+
+    const [items, total] = await Promise.all([
+      cursor.skip((p - 1) * l).limit(l).lean(),
+      Signal.countDocuments(query)
+    ]);
+
+    res.json({ success: true, signals: items.map(sanitizeSignalPublic), total, page: p, pages: Math.ceil(total / l) });
+  } catch (error) {
+    console.error('❌ List signals error:', error);
+    res.status(500).json({ error: 'Failed to list signals' });
+  }
+});
+
+// Signal detail (public)
+app.get('/api/signals/:id', async (req, res) => {
+  try {
+    const signal = await Signal.findById(req.params.id).lean();
+    if (!signal || signal.visibility !== 'public') return res.status(404).json({ error: 'Signal not found' });
+
+    const comments = await SignalComment.find({ signalId: signal._id }).sort({ createdAt: -1 }).limit(200).lean();
+    res.json({ success: true, signal: sanitizeSignalPublic(signal), comments: comments.map(c => ({ ...c, authorId: undefined })) });
+  } catch (error) {
+    console.error('❌ Signal detail error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Vote
+app.post('/api/signals/:id/vote', authenticateToken, async (req, res) => {
+  try {
+    const { vote } = req.body;
+    const v = Number(vote);
+    if (![1, -1].includes(v)) return res.status(400).json({ error: 'Invalid vote' });
+
+    const signal = await Signal.findById(req.params.id);
+    if (!signal || signal.visibility !== 'public') return res.status(404).json({ error: 'Signal not found' });
+
+    await SignalVote.findOneAndUpdate(
+      { signalId: signal._id, userId: req.userId },
+      { vote: v, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    const votesAgg = await SignalVote.aggregate([
+      { $match: { signalId: signal._id } },
+      { $group: { _id: null, score: { $sum: '$vote' }, count: { $sum: 1 } } }
+    ]);
+    const commentsCount = await SignalComment.countDocuments({ signalId: signal._id });
+
+    const score = votesAgg[0] ? votesAgg[0].score : 0;
+    signal.impactScore = score + Math.min(20, commentsCount * 0.5) + (signal.urgency - 3) * 0.3;
+    await signal.save();
+
+    res.json({ success: true, impactScore: signal.impactScore });
+  } catch (error) {
+    console.error('❌ Vote error:', error);
+    res.status(500).json({ error: 'Failed to vote' });
+  }
+});
+
+// Comment
+app.post('/api/signals/:id/comment', authenticateToken, async (req, res) => {
+  try {
+    const signal = await Signal.findById(req.params.id);
+    if (!signal || signal.visibility !== 'public') return res.status(404).json({ error: 'Signal not found' });
+
+    const { body } = req.body;
+    if (!body || !body.trim()) return res.status(400).json({ error: 'Empty comment' });
+
+    await SignalComment.create({
+      signalId: signal._id,
+      authorId: req.userId,
+      body: body.trim()
+    });
+
+    const commentsCount = await SignalComment.countDocuments({ signalId: signal._id });
+    signal.impactScore = (signal.impactScore || 0) + Math.min(1, commentsCount * 0.02);
+    await signal.save();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Comment error:', error);
+    res.status(500).json({ error: 'Failed to comment' });
+  }
+});
+
+// Report
+app.post('/api/signals/:id/report', authenticateToken, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) return res.status(400).json({ error: 'Reason required' });
+    await SignalReport.create({
+      signalId: req.params.id,
+      reporterId: req.userId,
+      reason: reason.trim()
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Report error:', error);
+    res.status(500).json({ error: 'Failed to report' });
+  }
+});
+
+// Moderation queue
+app.get('/api/mod/signals', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { visibility, status } = req.query;
+    const query = {};
+    if (visibility) query.visibility = visibility;
+    if (status) query.status = status;
+
+    const signals = await Signal.find(query).sort({ createdAt: -1 }).limit(200).lean();
+    res.json({ success: true, signals });
+  } catch (error) {
+    console.error('❌ Mod queue error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Approve / Reject / Set status
+app.post('/api/mod/signals/:id/action', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { action, note, status } = req.body;
+    const signal = await Signal.findById(req.params.id);
+    if (!signal) return res.status(404).json({ error: 'Not found' });
+
+    if (action === 'approve') signal.visibility = 'public';
+    if (action === 'hide') signal.visibility = 'hidden';
+    if (action === 'reject') { signal.visibility = 'hidden'; signal.status = 'rejected'; }
+    if (action === 'set_status' && status) signal.status = status;
+
+    await signal.save();
+    await SignalModeration.create({
+      signalId: signal._id,
+      moderatorId: req.userId,
+      action: action || 'unknown',
+      note: note || '',
+      createdAt: new Date()
+    });
+
+    if (io && signal.visibility === 'public') {
+      io.to('uni:' + signal.university).emit('signal:new', sanitizeSignalPublic(signal.toObject()));
+    }
+
+    res.json({ success: true, signal: sanitizeSignalPublic(signal.toObject()) });
+  } catch (error) {
+    console.error('❌ Mod action error:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
 
 // ==================== START SERVER ====================
 const PORT = process.env.PORT || 3000;

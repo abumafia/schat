@@ -1,1206 +1,750 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Channel - UniConnect</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="/socket.io/socket.io.js"></script>
-    <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .post-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .post-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        }
-        .view-count {
-            transition: color 0.3s ease;
-        }
-        .view-count:hover {
-            color: #667eea;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Channel - UniConnect</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    .gradient-bg{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}
+    .post-card{transition:transform .2s ease,box-shadow .2s ease}
+    .post-card:hover{transform:translateY(-2px);box-shadow:0 10px 25px rgba(0,0,0,.08)}
+    .focus-ring:focus{outline:none;box-shadow:0 0 0 3px rgba(102,126,234,.35)}
+    .line-clamp-6{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+  </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen">
-    <!-- Navigation -->
-    <nav class="gradient-bg text-white h-16">
-        <div class="container mx-auto px-4 h-full flex items-center justify-between">
-            <a href="/messages.html" class="flex items-center space-x-2">
-                <i class="fas fa-arrow-left"></i>
-                <span class="font-semibold">Back to Messages</span>
+  <!-- Navigation -->
+  <nav class="gradient-bg text-white h-16">
+    <div class="container mx-auto px-4 h-full flex items-center justify-between">
+      <a href="/channels.html" class="flex items-center space-x-2">
+        <i class="fas fa-arrow-left"></i>
+        <span class="font-semibold">Back to Channels</span>
+      </a>
+      <div class="flex items-center space-x-3">
+        <a href="/search.html" class="p-2 hover:bg-white/10 rounded-full" title="Search"><i class="fas fa-search"></i></a>
+        <a href="/profile.html" class="p-2 hover:bg-white/10 rounded-full" title="Profile"><i class="fas fa-user"></i></a>
+        <button id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-semibold">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mx-auto px-4 py-6">
+    <!-- Error banner -->
+    <div id="errorBanner" class="hidden mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="font-semibold">Something went wrong</div>
+          <div id="errorText" class="text-sm mt-1"></div>
+        </div>
+        <button class="text-red-800/70 hover:text-red-900" onclick="hideError()"><i class="fas fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <!-- Channel header -->
+    <section class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="relative">
+        <div id="coverBanner" class="h-44 bg-gray-200"></div>
+        <div class="absolute left-6 -bottom-7 flex items-end gap-4">
+          <div class="w-20 h-20 rounded-2xl bg-white shadow flex items-center justify-center overflow-hidden">
+            <img id="channelAvatar" class="w-full h-full object-cover hidden" alt="Channel avatar"/>
+            <div id="avatarFallback" class="w-full h-full gradient-bg flex items-center justify-center text-white text-2xl font-bold">C</div>
+          </div>
+          <div class="pb-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 id="channelName" class="text-2xl font-bold text-white drop-shadow"></h1>
+              <span id="channelPrivacy" class="px-2 py-0.5 text-xs rounded-full bg-white/20 text-white"></span>
+            </div>
+            <div class="text-white/90 text-sm">
+              <span id="channelUsername"></span>
+              <span class="mx-2">•</span>
+              <span id="channelCategory"></span>
+              <span class="mx-2">•</span>
+              <span id="channelUniversity"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="absolute right-4 top-4 flex items-center gap-2">
+          <button id="subscribeBtn" class="px-4 py-2 rounded-xl bg-white text-gray-900 font-semibold hover:bg-gray-100 shadow">
+            Subscribe
+          </button>
+          <button id="manageBtn" class="px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 border border-white/20">
+            <i class="fas fa-gear mr-2"></i>Manage
+          </button>
+        </div>
+      </div>
+
+      <div class="pt-10 px-6 pb-6">
+        <p id="channelDescription" class="text-gray-700"></p>
+
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="p-4 rounded-xl bg-gray-50 border">
+            <div class="text-xs text-gray-500">Subscribers</div>
+            <div id="subscriberCount" class="text-xl font-bold text-gray-900">0</div>
+          </div>
+          <div class="p-4 rounded-xl bg-gray-50 border">
+            <div class="text-xs text-gray-500">Posts</div>
+            <div id="postCount" class="text-xl font-bold text-gray-900">0</div>
+          </div>
+          <div class="p-4 rounded-xl bg-gray-50 border">
+            <div class="text-xs text-gray-500">Total views</div>
+            <div id="totalViews" class="text-xl font-bold text-gray-900">0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Composer (inline, no modal) -->
+    <section id="composerSection" class="mt-6 bg-white rounded-2xl shadow-sm p-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold text-gray-900">Create a post</h2>
+        <div class="text-xs text-gray-500">Share link preview works via the post permalink.</div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3">
+        <input id="postTitle" class="w-full px-4 py-2 rounded-xl border focus-ring" placeholder="Title (optional)" />
+        <textarea id="postContent" rows="4" class="w-full px-4 py-3 rounded-xl border focus-ring" placeholder="Write something... (you can include a URL)"></textarea>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border bg-gray-50 hover:bg-gray-100 cursor-pointer">
+            <i class="fas fa-paperclip"></i>
+            <span class="text-sm font-semibold">Attach media</span>
+            <input id="postMedia" type="file" class="hidden" accept="image/*,video/*" />
+          </label>
+
+          <div id="mediaBadge" class="hidden items-center gap-2 text-sm text-gray-700 px-3 py-2 rounded-xl bg-gray-50 border">
+            <i class="fas fa-file"></i><span id="mediaName"></span>
+            <button class="ml-2 text-gray-500 hover:text-gray-800" onclick="clearMedia()" title="Remove">
+              <i class="fas fa-xmark"></i>
+            </button>
+          </div>
+
+          <div class="flex-1"></div>
+
+          <button id="publishBtn" class="px-5 py-2.5 rounded-xl gradient-bg text-white font-semibold hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
+            <i class="fas fa-paper-plane mr-2"></i>Publish
+          </button>
+        </div>
+
+        <div id="publishHint" class="text-xs text-gray-500"></div>
+      </div>
+    </section>
+
+    <!-- Posts -->
+    <section class="mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold text-gray-900">Posts</h2>
+        <div class="flex items-center gap-2">
+          <select id="sortSelect" class="px-3 py-2 rounded-xl border bg-white focus-ring text-sm">
+            <option value="new">Newest</option>
+            <option value="popular">Most liked</option>
+            <option value="views">Most viewed</option>
+          </select>
+          <button id="refreshBtn" class="px-3 py-2 rounded-xl border bg-white hover:bg-gray-50 text-sm font-semibold">
+            <i class="fas fa-rotate mr-2"></i>Refresh
+          </button>
+        </div>
+      </div>
+
+      <div id="postsContainer" class="space-y-4"></div>
+
+      <div id="loading" class="hidden py-8 text-center text-gray-500">
+        <i class="fas fa-spinner fa-spin mr-2"></i> Loading...
+      </div>
+    </section>
+  </main>
+
+  <!-- Manage channel modal -->
+  <div id="manageModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" onclick="closeManage()"></div>
+    <div class="relative mx-auto mt-10 max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div class="p-5 border-b flex items-center justify-between">
+        <div>
+          <div class="text-lg font-bold text-gray-900">Channel settings</div>
+          <div class="text-xs text-gray-500">Update avatar, banner, name, username and more.</div>
+        </div>
+        <button class="p-2 rounded-lg hover:bg-gray-100" onclick="closeManage()"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div class="p-5 space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-4 rounded-xl border bg-gray-50">
+            <div class="text-sm font-semibold mb-2">Avatar</div>
+            <input id="avatarInput" type="file" accept="image/*" class="block w-full text-sm" />
+            <button id="saveAvatarBtn" class="mt-3 px-4 py-2 rounded-xl gradient-bg text-white font-semibold">Upload avatar</button>
+          </div>
+          <div class="p-4 rounded-xl border bg-gray-50">
+            <div class="text-sm font-semibold mb-2">Cover banner</div>
+            <input id="bannerInput" type="file" accept="image/*" class="block w-full text-sm" />
+            <button id="saveBannerBtn" class="mt-3 px-4 py-2 rounded-xl gradient-bg text-white font-semibold">Upload banner</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-semibold text-gray-700">Name</label>
+            <input id="editName" class="mt-1 w-full px-4 py-2 rounded-xl border focus-ring" />
+          </div>
+          <div>
+            <label class="text-sm font-semibold text-gray-700">Username</label>
+            <input id="editUsername" class="mt-1 w-full px-4 py-2 rounded-xl border focus-ring" />
+            <div class="text-xs text-gray-500 mt-1">Used in links and search.</div>
+          </div>
+          <div>
+            <label class="text-sm font-semibold text-gray-700">Category</label>
+            <input id="editCategory" class="mt-1 w-full px-4 py-2 rounded-xl border focus-ring" />
+          </div>
+          <div>
+            <label class="text-sm font-semibold text-gray-700">University</label>
+            <input id="editUniversity" class="mt-1 w-full px-4 py-2 rounded-xl border focus-ring" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-semibold text-gray-700">Description</label>
+          <textarea id="editDescription" rows="3" class="mt-1 w-full px-4 py-3 rounded-xl border focus-ring"></textarea>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <label class="inline-flex items-center gap-2">
+            <input id="editIsPublic" type="checkbox" class="w-4 h-4" />
+            <span class="text-sm font-semibold text-gray-700">Public channel</span>
+          </label>
+
+          <button id="saveChannelBtn" class="px-5 py-2.5 rounded-xl gradient-bg text-white font-semibold">
+            <i class="fas fa-floppy-disk mr-2"></i>Save changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ----------------- Helpers -----------------
+  const token = localStorage.getItem('token');
+  if (!token) location.href = '/login.html';
+
+  const authHeaders = () => ({
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  });
+
+  function showError(msg){
+    const b = document.getElementById('errorBanner');
+    document.getElementById('errorText').textContent = msg || 'Unknown error';
+    b.classList.remove('hidden');
+  }
+  function hideError(){ document.getElementById('errorBanner').classList.add('hidden'); }
+
+  const isObjectId = (v) => /^[0-9a-fA-F]{24}$/.test(String(v || ''));
+
+  function escapeHtml(str){
+    return String(str||'')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  // ----------------- Page state -----------------
+  const urlParams = new URLSearchParams(location.search);
+  const channelId = urlParams.get('channelId') || urlParams.get('id');
+  const focusPostId = urlParams.get('postId');
+
+  if (!isObjectId(channelId)) {
+    showError('Invalid or missing channelId in URL. Redirecting to channels list...');
+    setTimeout(() => location.href = '/channels.html', 1200);
+  }
+
+  let socket = null;
+  let channel = null;
+  let posts = [];
+
+  // ----------------- Socket -----------------
+  function initSocket(){
+    socket = io();
+    socket.on('connect', () => {
+      socket.emit('authenticate', token);
+      if (isObjectId(channelId)) socket.emit('joinChannel', channelId);
+    });
+
+    socket.on('channelPost:new', (payload) => {
+      if (payload?.channelId === channelId) {
+        loadPosts(true);
+      }
+    });
+
+    socket.on('channelPostComment:new', (payload) => {
+      // Update comment section if open
+      if (payload?.postId) {
+        const box = document.querySelector(`[data-comments-box="${payload.postId}"]`);
+        if (box && !box.classList.contains('hidden')) {
+          loadComments(payload.postId);
+        }
+      }
+    });
+  }
+
+  // ----------------- API -----------------
+  async function apiGet(url){
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
+    return data;
+  }
+
+  async function apiPost(url, body){
+    const res = await fetch(url, { method:'POST', headers: authHeaders(), body: JSON.stringify(body||{}) });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
+    return data;
+  }
+
+  async function apiPut(url, body){
+    const res = await fetch(url, { method:'PUT', headers: authHeaders(), body: JSON.stringify(body||{}) });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
+    return data;
+  }
+
+  // ----------------- Load channel -----------------
+  async function loadChannel(){
+    try{
+      const data = await apiGet(`/api/channels/${channelId}`);
+      channel = data.channel;
+
+      // Cover banner
+      const cover = document.getElementById('coverBanner');
+      if (channel.coverBanner) {
+        cover.style.backgroundImage = `url('${channel.coverBanner}')`;
+        cover.style.backgroundSize = 'cover';
+        cover.style.backgroundPosition = 'center';
+      } else {
+        cover.classList.add('gradient-bg');
+      }
+
+      // Avatar
+      const avatarImg = document.getElementById('channelAvatar');
+      const avatarFallback = document.getElementById('avatarFallback');
+      const initial = (channel.name || 'C').trim().slice(0,1).toUpperCase();
+      avatarFallback.textContent = initial;
+
+      if (channel.avatar) {
+        avatarImg.src = channel.avatar;
+        avatarImg.classList.remove('hidden');
+        avatarFallback.classList.add('hidden');
+      } else {
+        avatarImg.classList.add('hidden');
+        avatarFallback.classList.remove('hidden');
+      }
+
+      // Texts
+      document.getElementById('channelName').textContent = channel.name || 'Channel';
+      document.getElementById('channelUsername').textContent = channel.username ? '@' + channel.username : '';
+      document.getElementById('channelCategory').textContent = channel.category || 'other';
+      document.getElementById('channelUniversity').textContent = channel.university || 'All universities';
+      document.getElementById('channelDescription').textContent = channel.description || '';
+      document.getElementById('channelPrivacy').textContent = channel.isPublic ? 'Public' : 'Private';
+
+      // Stats
+      document.getElementById('subscriberCount').textContent = channel.subscriberCount ?? (channel.subscribers?.length || 0);
+      document.getElementById('postCount').textContent = channel.postCount ?? 0;
+      document.getElementById('totalViews').textContent = channel.totalViews ?? 0;
+
+      // Subscribe button
+      const subBtn = document.getElementById('subscribeBtn');
+      setSubscribeBtn(!!channel.isSubscribed);
+
+      subBtn.onclick = async () => {
+        try{
+          const res = await apiPost(`/api/channels/${channelId}/subscribe`);
+          setSubscribeBtn(!!res.subscribed);
+          // refresh counts
+          await loadChannel();
+        }catch(e){ showError(e.message); }
+      };
+
+      // Manage button
+      const manageBtn = document.getElementById('manageBtn');
+      // Only creator or moderator can manage; server will enforce anyway.
+      manageBtn.onclick = openManage;
+
+      // Prefill manage form
+      document.getElementById('editName').value = channel.name || '';
+      document.getElementById('editUsername').value = channel.username || '';
+      document.getElementById('editDescription').value = channel.description || '';
+      document.getElementById('editCategory').value = channel.category || '';
+      document.getElementById('editUniversity').value = channel.university || '';
+      document.getElementById('editIsPublic').checked = !!channel.isPublic;
+
+    } catch(e){
+      showError(e.message);
+    }
+  }
+
+  function setSubscribeBtn(isSubscribed){
+    const btn = document.getElementById('subscribeBtn');
+    if (isSubscribed){
+      btn.textContent = 'Subscribed';
+      btn.className = 'px-4 py-2 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 border border-white/20';
+    } else {
+      btn.textContent = 'Subscribe';
+      btn.className = 'px-4 py-2 rounded-xl bg-white text-gray-900 font-semibold hover:bg-gray-100 shadow';
+    }
+  }
+
+  // ----------------- Posts -----------------
+  async function loadPosts(silent=false){
+    if (!silent) document.getElementById('loading').classList.remove('hidden');
+    try{
+      const sort = document.getElementById('sortSelect').value;
+      const data = await apiGet(`/api/channels/${channelId}/posts?sort=${encodeURIComponent(sort)}`);
+      posts = data.posts || [];
+      renderPosts();
+
+      // Focus post
+      if (focusPostId && isObjectId(focusPostId)) {
+        setTimeout(() => focusPost(focusPostId), 200);
+      }
+    } catch(e){
+      showError(e.message);
+    } finally {
+      if (!silent) document.getElementById('loading').classList.add('hidden');
+    }
+  }
+
+  function buildPostPermalink(postId){
+    const origin = window.location.origin;
+    return origin + '/post/' + postId;
+  }
+
+  function renderPosts(){
+    const container = document.getElementById('postsContainer');
+    if (!posts.length){
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 text-center text-gray-500 border">
+          <div class="text-lg font-semibold text-gray-700">No posts yet</div>
+          <div class="text-sm mt-1">Be the first to publish something.</div>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = posts.map(p => {
+      const liked = Array.isArray(p.likes) ? p.likes.includes(getMyUserIdUnsafe()) : !!p.liked; // fallback
+      const likeCount = p.likeCount ?? (p.likes?.length || 0);
+      const media = p.mediaUrl ? renderMedia(p.mediaUrl, p.mediaType) : '';
+      const permalink = buildPostPermalink(p._id);
+
+      return `
+      <article id="post_${p._id}" class="post-card bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div class="p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              ${p.title ? `<div class="text-lg font-bold text-gray-900">${escapeHtml(p.title)}</div>` : ''}
+              <div class="text-xs text-gray-500 mt-1">
+                <span>${new Date(p.createdAt).toLocaleString()}</span>
+                <span class="mx-2">•</span>
+                <span><i class="fas fa-eye mr-1"></i>${p.viewsCount ?? 0}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button class="px-3 py-2 rounded-xl border bg-white hover:bg-gray-50 text-sm font-semibold" onclick="copyLink('${p._id}')">
+                <i class="fas fa-link mr-2"></i>Copy link
+              </button>
+              <a class="px-3 py-2 rounded-xl border bg-white hover:bg-gray-50 text-sm font-semibold" href="${permalink}" target="_blank" rel="noopener">
+                <i class="fas fa-arrow-up-right-from-square mr-2"></i>Open
+              </a>
+            </div>
+          </div>
+
+          <div class="mt-3 text-gray-800 whitespace-pre-wrap">${escapeHtml(p.content || '')}</div>
+
+          ${media ? `<div class="mt-4">${media}</div>` : ''}
+
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button class="px-3 py-2 rounded-xl border text-sm font-semibold ${liked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white hover:bg-gray-50'}"
+                    onclick="toggleLike('${p._id}')">
+              <i class="fa-heart ${liked ? 'fas' : 'far'} mr-2"></i>
+              <span id="likeCount_${p._id}">${likeCount}</span>
+            </button>
+
+            <button class="px-3 py-2 rounded-xl border bg-white hover:bg-gray-50 text-sm font-semibold"
+                    onclick="toggleComments('${p._id}')">
+              <i class="far fa-comment mr-2"></i>Comments
+            </button>
+
+            <div class="flex-1"></div>
+
+            <a class="text-xs text-gray-500 hover:text-gray-800" href="/channel.html?channelId=${channelId}&postId=${p._id}">
+              Permalink highlight
             </a>
-            <div class="flex items-center space-x-4">
-                <a href="/search.html" class="p-2 hover:bg-white/10 rounded-full">
-                    <i class="fas fa-search"></i>
-                </a>
-                <a href="/profile.html" class="p-2 hover:bg-white/10 rounded-full">
-                    <i class="fas fa-user"></i>
-                </a>
-            </div>
-        </div>
-    </nav>
+          </div>
 
-    <!-- Channel Container -->
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <!-- Channel Header -->
-        <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
-            <!-- Channel Banner -->
-            <div class="h-48 gradient-bg relative">
-                <button onclick="changeChannelBanner()" 
-                        class="absolute top-4 right-4 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/30 transition">
-                    <i class="fas fa-camera mr-2"></i> Change Banner
-                </button>
+          <!-- Comments -->
+          <div data-comments-box="${p._id}" class="hidden mt-4 border-t pt-4">
+            <div id="comments_${p._id}" class="space-y-3"></div>
+            <div class="mt-3 flex gap-2">
+              <input id="commentInput_${p._id}" class="flex-1 px-4 py-2 rounded-xl border focus-ring" placeholder="Write a comment..." />
+              <button class="px-4 py-2 rounded-xl gradient-bg text-white font-semibold" onclick="addComment('${p._id}')">Send</button>
             </div>
-            
-            <!-- Channel Info -->
-            <div class="px-8 pb-8 -mt-16 relative">
-                <!-- Channel Avatar -->
-                <div class="relative inline-block">
-                    <div class="w-32 h-32 bg-blue-100 rounded-xl flex items-center justify-center border-4 border-white shadow-lg">
-                        <i class="fas fa-broadcast-tower text-blue-600 text-4xl"></i>
-                    </div>
-                    <button onclick="changeChannelAvatar()" 
-                            class="absolute bottom-2 right-2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition">
-                        <i class="fas fa-camera text-sm"></i>
-                    </button>
-                </div>
-                
-                <!-- Channel Details -->
-                <div class="mt-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <div>
-                            <h1 id="channelName" class="text-2xl font-bold text-gray-800">Loading...</h1>
-                            <p id="channelUsername" class="text-gray-600">@channel</p>
-                        </div>
-                        <div id="channelActions">
-                            <!-- Subscribe/Unsubscribe button will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <p id="channelDescription" class="text-gray-700 mb-4"></p>
-                    
-                    <!-- Channel Stats -->
-                    <div class="flex space-x-6 mb-6">
-                        <div class="text-center">
-                            <div class="text-xl font-bold text-gray-800" id="subscribersCount">0</div>
-                            <div class="text-sm text-gray-600">Subscribers</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-xl font-bold text-gray-800" id="postsCount">0</div>
-                            <div class="text-sm text-gray-600">Posts</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-xl font-bold text-gray-800" id="totalViews">0</div>
-                            <div class="text-sm text-gray-600">Total Views</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Channel Admin -->
-                    <div class="flex items-center space-x-2 mb-6">
-                        <span class="text-gray-600">Created by:</span>
-                        <img id="creatorAvatar" src="" class="w-8 h-8 rounded-full">
-                        <span id="creatorName" class="font-medium text-gray-800"></span>
-                    </div>
-                    
-                    <!-- Action Buttons (for creator) -->
-                    <div id="creatorActions" class="hidden space-x-3">
-                        <button onclick="createPost()" 
-                                class="gradient-bg text-white px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition">
-                            <i class="fas fa-plus mr-2"></i> Create Post
-                        </button>
-                        <button onclick="manageChannel()" 
-                                class="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg font-semibold hover:bg-gray-50 transition">
-                            <i class="fas fa-cog mr-2"></i> Manage Channel
-                        </button>
-                    </div>
-                </div>
-            </div>
+          </div>
         </div>
-        
-        <!-- Channel Content -->
-        <div class="flex flex-col lg:flex-row gap-8">
-            <!-- Posts Section -->
-            <div class="lg:w-2/3">
-                <!-- Posts Header -->
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold text-gray-800">Latest Posts</h2>
-                    <div class="flex space-x-2">
-                        <button onclick="sortPosts('latest')" 
-                                class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
-                            Latest
-                        </button>
-                        <button onclick="sortPosts('popular')" 
-                                class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
-                            Popular
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Posts List -->
-                <div id="postsList" class="space-y-6">
-                    <!-- Posts will be loaded here -->
-                    <div class="text-center py-12">
-                        <i class="fas fa-newspaper text-4xl text-gray-300 mb-4"></i>
-                        <h3 class="text-xl font-semibold text-gray-500">No posts yet</h3>
-                        <p class="text-gray-400">Be the first to post in this channel</p>
-                    </div>
-                </div>
-                
-                <!-- Load More -->
-                <div id="loadMoreContainer" class="text-center mt-8 hidden">
-                    <button onclick="loadMorePosts()" 
-                            class="gradient-bg text-white px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition">
-                        <i class="fas fa-sync-alt mr-2"></i> Load More Posts
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Sidebar -->
-            <div class="lg:w-1/3">
-                <!-- About Channel -->
-                <div class="bg-white rounded-xl shadow p-6 mb-6">
-                    <h3 class="font-bold text-gray-800 text-lg mb-4">About This Channel</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="text-sm text-gray-500">Category</label>
-                            <p id="channelCategory" class="font-medium">University Announcements</p>
-                        </div>
-                        <div>
-                            <label class="text-sm text-gray-500">Created</label>
-                            <p id="channelCreated" class="font-medium"></p>
-                        </div>
-                        <div>
-                            <label class="text-sm text-gray-500">Language</label>
-                            <p class="font-medium">English</p>
-                        </div>
-                        <div>
-                            <label class="text-sm text-gray-500">Content Policy</label>
-                            <p class="text-sm text-gray-600">Educational content only. No spam.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Recent Subscribers -->
-                <div class="bg-white rounded-xl shadow p-6 mb-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-gray-800 text-lg">Recent Subscribers</h3>
-                        <span class="text-sm text-gray-500" id="subscribersListCount">0</span>
-                    </div>
-                    <div id="subscribersList" class="space-y-3">
-                        <!-- Subscribers will be loaded here -->
-                        <div class="text-center py-4 text-gray-500">
-                            <i class="fas fa-users text-xl mb-2"></i>
-                            <p>No subscribers yet</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Channel Rules -->
-                <div class="bg-white rounded-xl shadow p-6">
-                    <h3 class="font-bold text-gray-800 text-lg mb-4">Channel Rules</h3>
-                    <ul class="space-y-2 text-sm text-gray-600">
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>Keep discussions relevant to the channel topic</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>Be respectful to all members</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>No spam or self-promotion</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
-                            <span>Follow university guidelines</span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
+      </article>`;
+    }).join('');
+  }
+
+  function renderMedia(url, type){
+    if (type === 'video'){
+      return `<video class="w-full rounded-xl border bg-black" controls src="${escapeHtml(url)}"></video>`;
+    }
+    // default image
+    return `<img class="w-full rounded-xl border object-cover" src="${escapeHtml(url)}" alt="post media" />`;
+  }
+
+  // Token doesn't store user id reliably; try decode JWT payload (unsafe but fine for UI)
+  function getMyUserIdUnsafe(){
+    try{
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.userId || payload.id || null;
+    }catch(e){ return null; }
+  }
+
+  async function toggleLike(postId){
+    try{
+      const res = await apiPost(`/api/posts/${postId}/like`);
+      const el = document.getElementById('likeCount_' + postId);
+      if (el) el.textContent = res.likeCount;
+
+      // Update local state quickly
+      const me = getMyUserIdUnsafe();
+      const p = posts.find(x => x._id === postId);
+      if (p && me){
+        p.likes = p.likes || [];
+        if (res.liked) {
+          if (!p.likes.includes(me)) p.likes.push(me);
+        } else {
+          p.likes = p.likes.filter(x => x !== me);
+        }
+      }
+      renderPosts();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+
+  function focusPost(postId){
+    const el = document.getElementById('post_' + postId);
+    if (!el) return;
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
+    el.classList.add('ring-4','ring-indigo-200');
+    setTimeout(() => el.classList.remove('ring-4','ring-indigo-200'), 2400);
+  }
+
+  function copyLink(postId){
+    const link = buildPostPermalink(postId);
+    navigator.clipboard.writeText(link).then(() => {
+      const hint = document.getElementById('publishHint');
+      hint.textContent = 'Copied: ' + link;
+      setTimeout(() => hint.textContent = '', 1500);
+    }).catch(()=>{});
+  }
+
+  // ----------------- Comments -----------------
+  async function toggleComments(postId){
+    const box = document.querySelector(`[data-comments-box="${postId}"]`);
+    if (!box) return;
+    const isHidden = box.classList.contains('hidden');
+    if (isHidden){
+      box.classList.remove('hidden');
+      await loadComments(postId);
+    } else {
+      box.classList.add('hidden');
+    }
+  }
+
+  async function loadComments(postId){
+    try{
+      const res = await apiGet(`/api/posts/${postId}/comments`);
+      const list = document.getElementById('comments_' + postId);
+      const comments = res.comments || [];
+      if (!comments.length){
+        list.innerHTML = `<div class="text-sm text-gray-500">No comments yet.</div>`;
+        return;
+      }
+      list.innerHTML = comments.map(c => `
+        <div class="flex gap-3">
+          <img class="w-9 h-9 rounded-full object-cover border" src="${escapeHtml(c.user?.avatar || 'https://ui-avatars.com/api/?name=User')}" />
+          <div class="flex-1">
+            <div class="text-sm font-semibold text-gray-900">${escapeHtml(c.user?.nickname || c.user?.username || 'User')}</div>
+            <div class="text-sm text-gray-800 whitespace-pre-wrap">${escapeHtml(c.content)}</div>
+            <div class="text-xs text-gray-500 mt-1">${new Date(c.createdAt).toLocaleString()}</div>
+          </div>
         </div>
-    </div>
+      `).join('');
+    }catch(e){
+      showError(e.message);
+    }
+  }
 
-    <!-- Create Post Modal -->
-    <div id="createPostModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl w-full max-w-2xl">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-bold">Create New Post</h3>
-                    <button onclick="closeCreatePostModal()" class="p-2 hover:bg-gray-100 rounded-full">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                
-                <form id="createPostForm" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Post Content *</label>
-                        <textarea id="postContent" rows="6" 
-                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                                  placeholder="What would you like to share with the channel?"></textarea>
-                    </div>
-                    
-                    <!-- Media Upload -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Add Media (Optional)</label>
-                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-500 transition cursor-pointer"
-                             onclick="document.getElementById('mediaUpload').click()">
-                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
-                            <div class="font-medium text-gray-700">Click to upload media</div>
-                            <div class="text-sm text-gray-500">Images, videos, or documents up to 10MB</div>
-                            <input type="file" id="mediaUpload" class="hidden" onchange="previewMedia(this)">
-                        </div>
-                        <div id="mediaPreview" class="mt-2 hidden">
-                            <!-- Media preview will be shown here -->
-                        </div>
-                    </div>
-                    
-                    <!-- Post Type -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Post Type</label>
-                        <div class="flex space-x-4">
-                            <label class="flex items-center">
-                                <input type="radio" name="postType" value="announcement" checked
-                                       class="text-purple-600 focus:ring-purple-500">
-                                <span class="ml-2">Announcement</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="radio" name="postType" value="discussion"
-                                       class="text-purple-600 focus:ring-purple-500">
-                                <span class="ml-2">Discussion</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="radio" name="postType" value="resource"
-                                       class="text-purple-600 focus:ring-purple-500">
-                                <span class="ml-2">Resource</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <!-- Actions -->
-                    <div class="flex space-x-3 pt-4">
-                        <button type="button" onclick="closeCreatePostModal()" 
-                                class="flex-1 border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition">
-                            Cancel
-                        </button>
-                        <button type="submit" 
-                                class="flex-1 gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
-                            <i class="fas fa-paper-plane mr-2"></i> Publish Post
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+  async function addComment(postId){
+    const input = document.getElementById('commentInput_' + postId);
+    const content = input.value.trim();
+    if (!content) return;
+    input.value = '';
+    try{
+      await apiPost(`/api/posts/${postId}/comments`, { content });
+      await loadComments(postId);
+    }catch(e){
+      showError(e.message);
+    }
+  }
 
-    <!-- Post Detail Modal -->
-    <div id="postDetailModal" class="fixed inset-0 bg-black bg-opacity-75 hidden z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white rounded-xl w-full max-w-3xl my-8">
-            <!-- Post detail will be loaded here -->
-        </div>
-    </div>
+  // ----------------- Composer -----------------
+  const mediaInput = document.getElementById('postMedia');
+  mediaInput.addEventListener('change', () => {
+    const file = mediaInput.files && mediaInput.files[0];
+    if (!file) return clearMedia();
+    document.getElementById('mediaName').textContent = file.name;
+    document.getElementById('mediaBadge').classList.remove('hidden');
+    document.getElementById('mediaBadge').classList.add('inline-flex');
+  });
 
-    <script>
-        let socket = null;
-        let currentUser = null;
-        let currentChannel = null;
-        let channelId = null;
-        let posts = [];
-        let currentPage = 1;
-        let hasMorePosts = true;
-        let isSubscribed = false;
-        
-        // Initialize
-        document.addEventListener('DOMContentLoaded', async () => {
-            await checkAuth();
-            await getChannelIdFromURL();
-            await loadCurrentUser();
-            await loadChannel();
-            setupSocket();
-            loadPosts();
-            loadSubscribers();
-        });
-        
-        // Get channel ID from URL
-        function getChannelIdFromURL() {
-            const urlParams = new URLSearchParams(window.location.search);
-            channelId = urlParams.get('id');
-            
-            if (!channelId) {
-                alert('Channel ID not found in URL');
-                window.location.href = '/messages.html';
-            }
-        }
-        
-        // Authentication
-        async function checkAuth() {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/login.html';
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/me', {
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    if (response.status === 401 || response.status === 403) {
-                        localStorage.removeItem('token');
-                        window.location.href = '/login.html';
-                        return;
-                    }
-                    console.warn('Auth check returned non-ok status:', response.status);
-                } else {
-                    const data = await response.json();
-                    if (!data.success) {
-                        localStorage.removeItem('token');
-                        window.location.href = '/login.html';
-                        return;
-                    }
-                }
-            } catch (error) {
-                console.error('Auth check error:', error);
-                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
-                    console.error('Network error during auth check');
-                } else {
-                    localStorage.removeItem('token');
-                    window.location.href = '/login.html';
-                }
-            }
-        }
-        
-        // Load current user
-        async function loadCurrentUser() {
-            try {
-                const response = await fetch('/api/me', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                const data = await response.json();
-                if (data.success) {
-                    currentUser = data.user;
-                }
-            } catch (error) {
-                console.error('Failed to load user:', error);
-            }
-        }
-        
-        // Load channel information
-        async function loadChannel() {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/channels/${channelId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentChannel = data.channel;
-                    renderChannel(data.channel);
-                    checkSubscription();
-                    checkIfCreator();
-                } else {
-                    alert('Channel not found or access denied');
-                    window.location.href = '/messages.html';
-                }
-            } catch (error) {
-                console.error('Failed to load channel:', error);
-            }
-        }
-        
-        // Render channel information
-        function renderChannel(channel) {
-            document.getElementById('channelName').textContent = channel.name;
-            document.getElementById('channelUsername').textContent = `@${channel.username}`;
-            document.getElementById('channelDescription').textContent = channel.description || 'No description provided';
-            
-            // Stats
-            document.getElementById('subscribersCount').textContent = channel.subscribers?.length || 0;
-            document.getElementById('postsCount').textContent = channel.postCount || 0;
-            document.getElementById('totalViews').textContent = channel.totalViews || 0;
-            
-            // Creator info
-            if (channel.creatorId) {
-                document.getElementById('creatorAvatar').src = channel.creatorId.avatar;
-                document.getElementById('creatorName').textContent = channel.creatorId.nickname;
-            }
-            
-            // Created date
-            const createdDate = new Date(channel.createdAt);
-            document.getElementById('channelCreated').textContent = createdDate.toLocaleDateString();
-            
-            // Category
-            document.getElementById('channelCategory').textContent = channel.category || 'General';
-        }
-        
-        // Check subscription status
-        function checkSubscription() {
-            if (currentChannel && currentUser) {
-                isSubscribed = currentChannel.subscribers?.some(sub => sub._id === currentUser._id);
-                renderSubscriptionButton();
-            }
-        }
-        
-        // Render subscription button
-        function renderSubscriptionButton() {
-            const container = document.getElementById('channelActions');
-            
-            if (isSubscribed) {
-                container.innerHTML = `
-                    <button onclick="unsubscribeFromChannel()" 
-                            class="bg-red-100 text-red-600 px-6 py-2 rounded-lg font-semibold hover:bg-red-200 transition">
-                        <i class="fas fa-bell-slash mr-2"></i> Unsubscribe
-                    </button>
-                `;
-            } else {
-                container.innerHTML = `
-                    <button onclick="subscribeToChannel()" 
-                            class="gradient-bg text-white px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition">
-                        <i class="fas fa-bell mr-2"></i> Subscribe
-                    </button>
-                `;
-            }
-        }
-        
-        // Check if user is channel creator
-        function checkIfCreator() {
-            if (currentChannel && currentUser) {
-                const isCreator = currentChannel.creatorId?._id === currentUser._id;
-                if (isCreator) {
-                    document.getElementById('creatorActions').classList.remove('hidden');
-                }
-            }
-        }
-        
-        // Setup Socket.IO
-        function setupSocket() {
-            const token = localStorage.getItem('token');
-            socket = io();
-            
-            socket.emit('authenticate', token);
-            socket.emit('joinChannel', channelId);
-            
-            // Listen for new posts
-            socket.on('newPost', (post) => {
-                if (post.channelId === channelId) {
-                    addPostToUI(post);
-                }
-            });
-            
-            // Listen for subscription updates
-            socket.on('channelSubscriptionUpdate', (data) => {
-                if (data.channelId === channelId) {
-                    updateSubscribers(data);
-                }
-            });
-        }
-        
-        // Load posts
-        async function loadPosts(page = 1) {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/channels/${channelId}/posts?page=${page}&limit=10`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    if (page === 1) {
-                        posts = data.posts;
-                        renderPosts(data.posts);
-                    } else {
-                        posts = [...posts, ...data.posts];
-                        appendPosts(data.posts);
-                    }
-                    
-                    hasMorePosts = data.hasMore;
-                    currentPage = page;
-                    
-                    // Show/hide load more button
-                    const loadMoreBtn = document.getElementById('loadMoreContainer');
-                    if (hasMorePosts) {
-                        loadMoreBtn.classList.remove('hidden');
-                    } else {
-                        loadMoreBtn.classList.add('hidden');
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load posts:', error);
-            }
-        }
-        
-        // Render posts
-        function renderPosts(posts) {
-            const container = document.getElementById('postsList');
-            
-            if (!posts || posts.length === 0) {
-                return;
-            }
-            
-            container.innerHTML = posts.map(post => createPostElement(post)).join('');
-        }
-        
-        // Append posts
-        function appendPosts(newPosts) {
-            const container = document.getElementById('postsList');
-            newPosts.forEach(post => {
-                const postElement = createPostElement(post);
-                container.insertAdjacentHTML('beforeend', postElement);
-            });
-        }
-        
-        // Create post element
-        function createPostElement(post) {
-            const postDate = new Date(post.createdAt);
-            const formattedDate = postDate.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-            });
-            
-            return `
-                <div class="post-card bg-white rounded-xl shadow p-6 cursor-pointer hover:shadow-lg"
-                     onclick="viewPost('${post._id}')">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-broadcast-tower text-blue-600"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-gray-800">${post.title || 'Untitled Post'}</h3>
-                                <p class="text-sm text-gray-500">${formattedDate}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="view-count flex items-center text-gray-500 text-sm">
-                                <i class="fas fa-eye mr-1"></i>
-                                <span>${post.viewsCount || 0}</span>
-                            </span>
-                            <span class="flex items-center text-gray-500 text-sm">
-                                <i class="fas fa-heart mr-1"></i>
-                                <span>${post.likes?.length || 0}</span>
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <p class="text-gray-700 mb-4 line-clamp-3">${post.content}</p>
-                    
-                    ${post.mediaUrl ? `
-                        <div class="mb-4">
-                            ${post.mediaType === 'image' ? 
-                                `<img src="${post.mediaUrl}" class="w-full h-48 object-cover rounded-lg">` :
-                                post.mediaType === 'video' ?
-                                `<div class="relative w-full h-48 bg-gray-800 rounded-lg">
-                                    <video src="${post.mediaUrl}" class="w-full h-full rounded-lg object-cover"></video>
-                                    <div class="absolute inset-0 flex items-center justify-center">
-                                        <i class="fas fa-play text-white text-3xl"></i>
-                                    </div>
-                                </div>` :
-                                `<div class="flex items-center p-3 bg-gray-100 rounded-lg">
-                                    <i class="fas fa-file text-gray-600 text-xl mr-3"></i>
-                                    <div>
-                                        <p class="font-medium">File Attachment</p>
-                                        <p class="text-sm text-gray-500">Click to download</p>
-                                    </div>
-                                </div>`
-                            }
-                        </div>
-                    ` : ''}
-                    
-                    <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                        <div class="flex space-x-2">
-                            <button onclick="likePost('${post._id}', event)" 
-                                    class="flex items-center text-gray-500 hover:text-red-500">
-                                <i class="far fa-heart mr-1"></i>
-                                <span>Like</span>
-                            </button>
-                            <button onclick="commentOnPost('${post._id}', event)" 
-                                    class="flex items-center text-gray-500 hover:text-blue-500">
-                                <i class="far fa-comment mr-1"></i>
-                                <span>Comment</span>
-                            </button>
-                            <button onclick="sharePost('${post._id}', event)" 
-                                    class="flex items-center text-gray-500 hover:text-green-500">
-                                <i class="fas fa-share mr-1"></i>
-                                <span>Share</span>
-                            </button>
-                        </div>
-                        <button onclick="savePost('${post._id}', event)" 
-                                class="text-gray-500 hover:text-yellow-500">
-                            <i class="far fa-bookmark"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Add post to UI
-        function addPostToUI(post) {
-            const container = document.getElementById('postsList');
-            
-            // If no posts yet
-            if (container.innerHTML.includes('No posts yet')) {
-                container.innerHTML = '';
-            }
-            
-            const postElement = createPostElement(post);
-            container.insertAdjacentHTML('afterbegin', postElement);
-            posts.unshift(post);
-        }
-        
-        // Load more posts
-        function loadMorePosts() {
-            loadPosts(currentPage + 1);
-        }
-        
-        // Sort posts
-        function sortPosts(sortBy) {
-            alert(`Sorting posts by ${sortBy} would be implemented`);
-        }
-        
-        // Subscribe to channel
-        async function subscribeToChannel() {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/channels/${channelId}/subscribe`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    isSubscribed = true;
-                    renderSubscriptionButton();
-                    updateSubscriberCount(1);
-                    loadSubscribers();
-                } else {
-                    alert(data.error || 'Failed to subscribe');
-                }
-            } catch (error) {
-                console.error('Subscribe error:', error);
-                alert('Failed to subscribe');
-            }
-        }
-        
-        // Unsubscribe from channel
-        async function unsubscribeFromChannel() {
-            if (!confirm('Are you sure you want to unsubscribe from this channel?')) {
-                return;
-            }
-            
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/channels/${channelId}/unsubscribe`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    isSubscribed = false;
-                    renderSubscriptionButton();
-                    updateSubscriberCount(-1);
-                    loadSubscribers();
-                } else {
-                    alert(data.error || 'Failed to unsubscribe');
-                }
-            } catch (error) {
-                console.error('Unsubscribe error:', error);
-                alert('Failed to unsubscribe');
-            }
-        }
-        
-        // Update subscriber count
-        function updateSubscriberCount(change) {
-            const countElement = document.getElementById('subscribersCount');
-            const currentCount = parseInt(countElement.textContent) || 0;
-            countElement.textContent = currentCount + change;
-        }
-        
-        // Load subscribers
-        async function loadSubscribers() {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/channels/${channelId}/subscribers`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    renderSubscribers(data.subscribers);
-                }
-            } catch (error) {
-                console.error('Failed to load subscribers:', error);
-            }
-        }
-        
-        // Render subscribers
-        function renderSubscribers(subscribers) {
-            const container = document.getElementById('subscribersList');
-            const countElement = document.getElementById('subscribersListCount');
-            
-            if (!subscribers || subscribers.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-4 text-gray-500">
-                        <i class="fas fa-users text-xl mb-2"></i>
-                        <p>No subscribers yet</p>
-                    </div>
-                `;
-                countElement.textContent = '0';
-                return;
-            }
-            
-            const recentSubscribers = subscribers.slice(0, 5);
-            container.innerHTML = recentSubscribers.map(sub => `
-                <div class="flex items-center space-x-3">
-                    <img src="${sub.avatar}" class="w-8 h-8 rounded-full">
-                    <div>
-                        <p class="font-medium text-sm text-gray-800">${sub.nickname}</p>
-                        <p class="text-xs text-gray-500">@${sub.username}</p>
-                    </div>
-                </div>
-            `).join('');
-            
-            countElement.textContent = subscribers.length;
-        }
-        
-        // Update subscribers
-        function updateSubscribers(data) {
-            // This would update the subscribers list in real-time
-            loadSubscribers();
-        }
-        
-        // Create post
-        function createPost() {
-            if (!currentChannel || currentChannel.creatorId?._id !== currentUser._id) {
-                alert('Only channel creator can create posts');
-                return;
-            }
-            
-            document.getElementById('createPostModal').classList.remove('hidden');
-        }
-        
-        function closeCreatePostModal() {
-            document.getElementById('createPostModal').classList.add('hidden');
-            document.getElementById('createPostForm').reset();
-            document.getElementById('mediaPreview').classList.add('hidden');
-            document.getElementById('mediaPreview').innerHTML = '';
-        }
-        
-        // Preview media
-        function previewMedia(input) {
-            const file = input.files[0];
-            if (file) {
-                const preview = document.getElementById('mediaPreview');
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    if (file.type.startsWith('image/')) {
-                        preview.innerHTML = `
-                            <img src="${e.target.result}" class="max-w-full h-48 object-cover rounded-lg">
-                        `;
-                    } else if (file.type.startsWith('video/')) {
-                        preview.innerHTML = `
-                            <video src="${e.target.result}" class="max-w-full h-48 object-cover rounded-lg" controls></video>
-                        `;
-                    } else {
-                        preview.innerHTML = `
-                            <div class="flex items-center p-3 bg-gray-100 rounded-lg">
-                                <i class="fas fa-file text-gray-600 text-2xl mr-3"></i>
-                                <div>
-                                    <p class="font-medium">${file.name}</p>
-                                    <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    preview.classList.remove('hidden');
-                };
-                
-                reader.readAsDataURL(file);
-            }
-        }
-        
-        // Create post form submission
-        document.getElementById('createPostForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const content = document.getElementById('postContent').value;
-            const postType = document.querySelector('input[name="postType"]:checked').value;
-            
-            if (!content.trim()) {
-                alert('Please enter post content');
-                return;
-            }
-            
-            try {
-                const token = localStorage.getItem('token');
+  function clearMedia(){
+    mediaInput.value = '';
+    document.getElementById('mediaBadge').classList.add('hidden');
+    document.getElementById('mediaBadge').classList.remove('inline-flex');
+  }
+  window.clearMedia = clearMedia;
 
-                // Server expects JSON body for channel posts (not multipart/form-data).
-                // We'll send content + type. Media upload can be added later with multer/cloudinary.
-                const response = await fetch(`/api/channels/${channelId}/posts`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        content,
-                        type: postType
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    alert('Post published successfully!');
-                    closeCreatePostModal();
-                    addPostToUI(data.post);
-                } else {
-                    alert(data.error || 'Failed to publish post');
-                }
-            } catch (error) {
-                console.error('Failed to create post:', error);
-                alert('Failed to publish post');
-            }
-        });
-        
-        // View post detail
-        async function viewPost(postId) {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/posts/${postId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    showPostDetail(data.post);
-                }
-            } catch (error) {
-                console.error('Failed to load post:', error);
-            }
+  document.getElementById('publishBtn').addEventListener('click', publishPost);
+
+  async function uploadMedia(file){
+    const form = new FormData();
+    form.append('media', file);
+    const res = await fetch(`/api/channels/${channelId}/posts/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  }
+
+  async function publishPost(){
+    const btn = document.getElementById('publishBtn');
+    const title = document.getElementById('postTitle').value.trim();
+    const content = document.getElementById('postContent').value.trim();
+    const file = mediaInput.files && mediaInput.files[0];
+
+    if (!content && !file) {
+      showError('Please write something or attach media.');
+      return;
+    }
+
+    btn.disabled = true;
+    try{
+      let mediaUrl = '';
+      let mediaType = '';
+
+      if (file) {
+        const up = await uploadMedia(file);
+        mediaUrl = up.url || '';
+        mediaType = up.type || '';
+        if (mediaType === 'image' || mediaType === 'video') {} else {
+          // fallback: infer
+          mediaType = file.type.startsWith('video/') ? 'video' : 'image';
         }
-        
-        // Show post detail modal
-        function showPostDetail(post) {
-            const modal = document.getElementById('postDetailModal');
-            const container = modal.querySelector('.bg-white');
-            
-            const postDate = new Date(post.createdAt);
-            const formattedDate = postDate.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            
-            container.innerHTML = `
-                <div class="p-6">
-                    <div class="flex justify-between items-start mb-6">
-                        <div>
-                            <h2 class="text-2xl font-bold text-gray-800">${post.title || 'Untitled Post'}</h2>
-                            <p class="text-gray-500">${formattedDate}</p>
-                        </div>
-                        <button onclick="closePostDetail()" class="p-2 hover:bg-gray-100 rounded-full">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="prose max-w-none mb-6">
-                        <p class="text-gray-700 whitespace-pre-line">${post.content}</p>
-                    </div>
-                    
-                    ${post.mediaUrl ? `
-                        <div class="mb-6">
-                            ${post.mediaType === 'image' ? 
-                                `<img src="${post.mediaUrl}" class="w-full rounded-lg">` :
-                                post.mediaType === 'video' ?
-                                `<video src="${post.mediaUrl}" controls class="w-full rounded-lg"></video>` :
-                                `<div class="flex items-center p-4 bg-gray-100 rounded-lg">
-                                    <i class="fas fa-file text-gray-600 text-3xl mr-4"></i>
-                                    <div>
-                                        <p class="font-medium text-lg">File Attachment</p>
-                                        <p class="text-gray-500">Click to download</p>
-                                    </div>
-                                    <a href="${post.mediaUrl}" download class="ml-auto">
-                                        <button class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
-                                            <i class="fas fa-download mr-2"></i> Download
-                                        </button>
-                                    </a>
-                                </div>`
-                            }
-                        </div>
-                    ` : ''}
-                    
-                    <div class="flex items-center justify-between py-4 border-t border-b border-gray-200">
-                        <div class="flex items-center space-x-6">
-                            <button onclick="likePost('${post._id}')" 
-                                    class="flex items-center space-x-2 ${post.likes?.includes(currentUser._id) ? 'text-red-500' : 'text-gray-500'}">
-                                <i class="${post.likes?.includes(currentUser._id) ? 'fas' : 'far'} fa-heart"></i>
-                                <span>${post.likes?.length || 0}</span>
-                            </button>
-                            <button onclick="focusComments()" 
-                                    class="flex items-center space-x-2 text-gray-500">
-                                <i class="far fa-comment"></i>
-                                <span>${post.comments?.length || 0}</span>
-                            </button>
-                            <button onclick="sharePost('${post._id}')" 
-                                    class="flex items-center space-x-2 text-gray-500">
-                                <i class="fas fa-share"></i>
-                                <span>Share</span>
-                            </button>
-                        </div>
-                        <div class="flex items-center text-gray-500">
-                            <i class="fas fa-eye mr-2"></i>
-                            <span>${post.viewsCount || 0} views</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Comments Section -->
-                    <div class="mt-6">
-                        <h3 class="font-bold text-gray-800 text-lg mb-4">Comments</h3>
-                        <div id="commentsSection" class="space-y-4 mb-4">
-                            <!-- Comments will be loaded here -->
-                        </div>
-                        
-                        <!-- Add Comment -->
-                        <div class="flex space-x-2">
-                            <input type="text" id="commentInput" 
-                                   class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                   placeholder="Add a comment...">
-                            <button onclick="addComment('${post._id}')" 
-                                    class="gradient-bg text-white px-4 py-2 rounded-lg font-semibold hover:opacity-90">
-                                Post
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            modal.classList.remove('hidden');
-            loadComments(post._id);
-            
-            // Increment view count
-            incrementViewCount(post._id);
-        }
-        
-        function closePostDetail() {
-            document.getElementById('postDetailModal').classList.add('hidden');
-        }
-        
-        // Load comments
-        async function loadComments(postId) {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/posts/${postId}/comments`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    renderComments(data.comments);
-                }
-            } catch (error) {
-                console.error('Failed to load comments:', error);
-            }
-        }
-        
-        // Render comments
-        function renderComments(comments) {
-            const container = document.getElementById('commentsSection');
-            
-            if (!comments || comments.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 text-center py-4">No comments yet</p>';
-                return;
-            }
-            
-            container.innerHTML = comments.map(comment => `
-                <div class="flex space-x-3">
-                    <img src="${comment.userId.avatar}" class="w-8 h-8 rounded-full">
-                    <div class="flex-1">
-                        <div class="bg-gray-100 rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="font-medium text-sm">${comment.userId.nickname}</span>
-                                <span class="text-xs text-gray-500">${formatTime(comment.createdAt)}</span>
-                            </div>
-                            <p class="text-gray-700">${comment.content}</p>
-                        </div>
-                        <div class="flex space-x-3 mt-1 ml-4">
-                            <button onclick="likeComment('${comment._id}')" class="text-xs text-gray-500 hover:text-red-500">
-                                Like
-                            </button>
-                            <button onclick="replyToComment('${comment._id}')" class="text-xs text-gray-500 hover:text-blue-500">
-                                Reply
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-        // Add comment
-        async function addComment(postId) {
-            const input = document.getElementById('commentInput');
-            const content = input.value.trim();
-            
-            if (!content) return;
-            
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/posts/${postId}/comments`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ content })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    input.value = '';
-                    loadComments(postId);
-                }
-            } catch (error) {
-                console.error('Failed to add comment:', error);
-            }
-        }
-        
-        // Like post
-        async function likePost(postId, event) {
-            if (event) event.stopPropagation();
-            
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/posts/${postId}/like`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    // Update like count in UI
-                    if (event) {
-                        const postElement = event.target.closest('.post-card');
-                        if (postElement) {
-                            const likeCount = postElement.querySelector('.fa-heart').nextElementSibling;
-                            const currentCount = parseInt(likeCount.textContent) || 0;
-                            likeCount.textContent = data.liked ? currentCount + 1 : currentCount - 1;
-                            
-                            const icon = postElement.querySelector('.fa-heart');
-                            if (data.liked) {
-                                icon.classList.remove('far');
-                                icon.classList.add('fas', 'text-red-500');
-                            } else {
-                                icon.classList.remove('fas', 'text-red-500');
-                                icon.classList.add('far');
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to like post:', error);
-            }
-        }
-        
-        // Share post
-        function sharePost(postId, event) {
-            if (event) event.stopPropagation();
-            
-            const postUrl = `${window.location.origin}/post.html?id=${postId}`;
-            navigator.clipboard.writeText(postUrl).then(() => {
-                alert('Post link copied to clipboard!');
-            });
-        }
-        
-        // Save post
-        async function savePost(postId, event) {
-            if (event) event.stopPropagation();
-            
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/posts/${postId}/save`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    alert(data.saved ? 'Post saved!' : 'Post removed from saved');
-                }
-            } catch (error) {
-                console.error('Failed to save post:', error);
-            }
-        }
-        
-        // Increment view count
-        async function incrementViewCount(postId) {
-            try {
-                const token = localStorage.getItem('token');
-                await fetch(`/api/posts/${postId}/view`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-            } catch (error) {
-                console.error('Failed to increment view count:', error);
-            }
-        }
-        
-        // Change channel banner
-        function changeChannelBanner() {
-            alert('Channel banner upload would be implemented');
-        }
-        
-        // Change channel avatar
-        function changeChannelAvatar() {
-            alert('Channel avatar upload would be implemented');
-        }
-        
-        // Manage channel
-        function manageChannel() {
-            alert('Channel management would open a modal');
-        }
-        
-        // Format time
-        function formatTime(dateString) {
-            const date = new Date(dateString);
-            const now = new Date();
-            const diff = now - date;
-            
-            if (diff < 60000) return 'just now';
-            if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-            if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            return date.toLocaleDateString();
-        }
-        
-        // Close modals when clicking outside
-        document.addEventListener('click', (event) => {
-            const createModal = document.getElementById('createPostModal');
-            const detailModal = document.getElementById('postDetailModal');
-            
-            if (createModal && !createModal.contains(event.target) && !event.target.closest('[onclick="createPost()"]')) {
-                if (!createModal.classList.contains('hidden')) {
-                    closeCreatePostModal();
-                }
-            }
-            
-            if (detailModal && event.target === detailModal) {
-                closePostDetail();
-            }
-        });
-    </script>
+      }
+
+      await apiPost(`/api/channels/${channelId}/posts`, { title, content: content || '(media)', mediaUrl, mediaType });
+
+      document.getElementById('postTitle').value = '';
+      document.getElementById('postContent').value = '';
+      clearMedia();
+      await loadPosts(true);
+    } catch(e){
+      showError(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ----------------- Manage channel -----------------
+  function openManage(){
+    document.getElementById('manageModal').classList.remove('hidden');
+  }
+  function closeManage(){
+    document.getElementById('manageModal').classList.add('hidden');
+  }
+  window.closeManage = closeManage;
+
+  document.getElementById('saveChannelBtn').addEventListener('click', async () => {
+    try{
+      const payload = {
+        name: document.getElementById('editName').value.trim(),
+        username: document.getElementById('editUsername').value.trim(),
+        description: document.getElementById('editDescription').value.trim(),
+        category: document.getElementById('editCategory').value.trim(),
+        university: document.getElementById('editUniversity').value.trim(),
+        isPublic: document.getElementById('editIsPublic').checked
+      };
+      await apiPut(`/api/channels/${channelId}`, payload);
+      closeManage();
+      await loadChannel();
+    }catch(e){ showError(e.message); }
+  });
+
+  async function uploadChannelImage(kind){
+    const input = document.getElementById(kind === 'avatar' ? 'avatarInput' : 'bannerInput');
+    const file = input.files && input.files[0];
+    if (!file) { showError('Please choose a file first.'); return; }
+
+    const form = new FormData();
+    form.append(kind, file);
+
+    const endpoint = kind === 'avatar' ? 'avatar' : 'banner';
+    const res = await fetch(`/api/channels/${channelId}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: form
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  }
+
+  document.getElementById('saveAvatarBtn').addEventListener('click', async () => {
+    try{ await uploadChannelImage('avatar'); await loadChannel(); }
+    catch(e){ showError(e.message); }
+  });
+
+  document.getElementById('saveBannerBtn').addEventListener('click', async () => {
+    try{ await uploadChannelImage('banner'); await loadChannel(); }
+    catch(e){ showError(e.message); }
+  });
+
+  // ----------------- Actions -----------------
+  document.getElementById('refreshBtn').addEventListener('click', () => loadPosts(false));
+  document.getElementById('sortSelect').addEventListener('change', () => loadPosts(false));
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    location.href = '/login.html';
+  });
+
+  // ----------------- Init -----------------
+  (async function init(){
+    initSocket();
+    await loadChannel();
+    await loadPosts(false);
+  })();
+</script>
 </body>
 </html>
